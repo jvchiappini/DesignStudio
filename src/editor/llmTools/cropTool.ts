@@ -129,6 +129,7 @@ export interface LLMToolContext {
   updateElement: (id: string, updates: Partial<DesignElement>) => void;
   selectElement: (id: string | null) => void;
   setCropPreview: (preview: CropPreview | null) => void;
+  getCropPreview?: () => CropPreview | null;
 }
 
 export interface LLMToolResult {
@@ -237,16 +238,26 @@ async function handleCropElement(
 
 async function handleConfirmCrop(
   _params: Record<string, unknown>,
-  _ctx: LLMToolContext,
+  ctx: LLMToolContext,
 ): Promise<LLMToolResult> {
-  // The preview is already in the store; this just delegates back to handleCropElement
-  // with confirmed=true. We need to read the preview data from somewhere accessible.
-  return {
-    success: false,
-    message:
-      "To confirm, call crop_element with the same parameters but confirmed=true. " +
-      "This will permanently apply the crop.",
-  };
+  if (!ctx.getCropPreview) {
+    return { success: false, message: "Host does not support reading crop preview." };
+  }
+  const preview = ctx.getCropPreview();
+  if (!preview) {
+    return {
+      success: false,
+      message: "No pending crop preview found to confirm. Call crop_element first with confirmed=false.",
+    };
+  }
+
+  const { elementId, mode, rect, bezierPath } = preview;
+
+  if (mode === "bezier") {
+    return handleCropElement({ elementId, mode, bezierPath, confirmed: true }, ctx);
+  }
+
+  return handleCropElement({ elementId, mode, confirmed: true, ...rect }, ctx);
 }
 
 async function handleCancelCrop(

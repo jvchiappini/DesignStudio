@@ -182,6 +182,7 @@ export function EditorCanvas() {
 
   const handleContainerPointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (useEditorStore.getState().cropElementId) return;
       const target = e.target as HTMLElement;
       if (target.closest("[data-handle]")) return;
       clearSelection();
@@ -658,8 +659,8 @@ export function EditorCanvas() {
                 {/* Selection handles */}
                 {isSelected && !isEditing && pathEditingId !== el.id && (
                   <>
-                  <div data-selection="true" className="absolute inset-0 border-2 pointer-events-none box-border rounded-sm"
-                    style={{ borderColor: HANDLE_COLOR }} />
+                    <div data-selection="true" className="absolute inset-0 border-2 pointer-events-none box-border rounded-sm"
+                      style={{ borderColor: HANDLE_COLOR }} />
                     {handlePositions.map((hp) => (
                       <div key={hp.key} data-handle="true"
                         onPointerDown={(e) => handlePointerDown(e, el.id, hp.key)}
@@ -671,12 +672,12 @@ export function EditorCanvas() {
                           top: `calc(${hp.sy * 100}% - ${HANDLE_SIZE / 2}px)`,
                         }} />
                     ))}
-                  <div data-selection="true" className="absolute top-[-30px] left-1/2 -translate-x-1/2 w-px h-[30px] bg-[rgba(108,92,231,0.4)] pointer-events-none"
-                    style={{ transform: `translateX(-0.5px)` }} />
-                  <div data-handle="true"
-                    onPointerDown={(e) => handleRotateStart(e, el.id)}
-                    className="absolute top-[-36px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2 border-white cursor-grab z-[9999]"
-                    style={{ backgroundColor: HANDLE_COLOR }} />
+                    <div data-selection="true" className="absolute top-[-30px] left-1/2 -translate-x-1/2 w-px h-[30px] bg-[rgba(108,92,231,0.4)] pointer-events-none"
+                      style={{ transform: `translateX(-0.5px)` }} />
+                    <div data-handle="true"
+                      onPointerDown={(e) => handleRotateStart(e, el.id)}
+                      className="absolute top-[-36px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2 border-white cursor-grab z-[9999]"
+                      style={{ backgroundColor: HANDLE_COLOR }} />
                   </>
                 )}
               </div>
@@ -693,39 +694,51 @@ export function EditorCanvas() {
           onClick={(e) => e.stopPropagation()}
         >
           {[
-            { label: "Copiar", shortcut: "Ctrl+C", fn: () => {
-              const state = useEditorStore.getState();
-              const copied = state.elements.filter((el) => state.selectedIds.includes(el.id)).map((el) => JSON.parse(JSON.stringify(el)));
-              useEditorStore.setState({ clipboard: copied });
-            }},
-            { label: "Pegar", shortcut: "Ctrl+V", fn: () => {
-              const state = useEditorStore.getState();
-              if (state.clipboard.length === 0) return;
-              state.saveSnapshot();
-              const maxZ = Math.max(...state.elements.map((el) => el.zIndex), 0);
-              const newEls = state.clipboard.map((el, i) => ({
-                ...JSON.parse(JSON.stringify(el)),
-                id: `el_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
-                x: el.x + 30, y: el.y + 30, zIndex: maxZ + i + 1,
-              }));
-              useEditorStore.setState((s) => ({ elements: [...s.elements, ...newEls], selectedId: newEls[newEls.length - 1].id, selectedIds: newEls.map((e) => e.id) }));
-            }},
-            { label: "Duplicar", shortcut: "Ctrl+D", fn: () => {
-              useEditorStore.getState().duplicateSelected();
-            }},
-            { label: "Eliminar", shortcut: "Del", fn: () => {
-              useEditorStore.getState().deleteSelected();
-            }},
-            { label: "---", shortcut: "", fn: () => {} },
-            { label: "Traer al frente", fn: () => {
-              const s = useEditorStore.getState();
-              s.selectedIds.forEach((id) => s.bringToFront(id));
-            }},
-            { label: "Enviar al fondo", fn: () => {
-              const s = useEditorStore.getState();
-              s.selectedIds.forEach((id) => s.sendToBack(id));
-            }},
-            { label: "---", shortcut: "", fn: () => {} },
+            {
+              label: "Copiar", shortcut: "Ctrl+C", fn: () => {
+                const state = useEditorStore.getState();
+                const copied = state.elements.filter((el) => state.selectedIds.includes(el.id)).map((el) => JSON.parse(JSON.stringify(el)));
+                useEditorStore.setState({ clipboard: copied });
+              }
+            },
+            {
+              label: "Pegar", shortcut: "Ctrl+V", fn: () => {
+                const state = useEditorStore.getState();
+                if (state.clipboard.length === 0) return;
+                state.saveSnapshot();
+                const maxZ = Math.max(...state.elements.map((el) => el.zIndex), 0);
+                const newEls = state.clipboard.map((el, i) => ({
+                  ...JSON.parse(JSON.stringify(el)),
+                  id: `el_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+                  x: el.x + 30, y: el.y + 30, zIndex: maxZ + i + 1,
+                }));
+                useEditorStore.setState((s) => ({ elements: [...s.elements, ...newEls], selectedId: newEls[newEls.length - 1].id, selectedIds: newEls.map((e) => e.id) }));
+              }
+            },
+            {
+              label: "Duplicar", shortcut: "Ctrl+D", fn: () => {
+                useEditorStore.getState().duplicateSelected();
+              }
+            },
+            {
+              label: "Eliminar", shortcut: "Del", fn: () => {
+                useEditorStore.getState().deleteSelected();
+              }
+            },
+            { label: "---", shortcut: "", fn: () => { } },
+            {
+              label: "Traer al frente", fn: () => {
+                const s = useEditorStore.getState();
+                s.selectedIds.forEach((id) => s.bringToFront(id));
+              }
+            },
+            {
+              label: "Enviar al fondo", fn: () => {
+                const s = useEditorStore.getState();
+                s.selectedIds.forEach((id) => s.sendToBack(id));
+              }
+            },
+            { label: "---", shortcut: "", fn: () => { } },
             { label: "Copiar estilos", fn: () => useEditorStore.getState().copyStyles() },
             { label: "Pegar estilos", fn: () => useEditorStore.getState().pasteStyles() },
           ].map((item, i) =>

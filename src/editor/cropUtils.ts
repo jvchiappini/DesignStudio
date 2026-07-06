@@ -1,21 +1,35 @@
 import type { DesignElement } from "./types";
 
-/** Physically crop an image element via canvas, returning new data URL */
 export function applyCrop(el: DesignElement): Promise<string | null> {
   return new Promise((resolve) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
-      const cw = el.cropW ?? el.width;
-      const ch = el.cropH ?? el.height;
+      const ew = el.width;
+      const eh = el.height;
+
+      const cw = el.cropW ?? ew;
+      const ch = el.cropH ?? eh;
       const cx = el.cropX ?? 0;
       const cy = el.cropY ?? 0;
+
+      const scaleX = img.naturalWidth / ew;
+      const scaleY = img.naturalHeight / eh;
+
+      const sx = cx * scaleX;
+      const sy = cy * scaleY;
+      const sw = cw * scaleX;
+      const sh = ch * scaleY;
+
       const canvas = document.createElement("canvas");
-      canvas.width = cw;
-      canvas.height = ch;
+      canvas.width = sw;
+      canvas.height = sh;
       const ctx = canvas.getContext("2d");
       if (!ctx) { resolve(null); return; }
-      ctx.drawImage(img, cx, cy, cw, ch, 0, 0, cw, ch);
-      resolve(canvas.toDataURL());
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = () => resolve(null);
     img.src = el.src ?? "";

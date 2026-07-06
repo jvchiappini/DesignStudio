@@ -159,8 +159,20 @@ export function BezierPathEditor({ width, height, onPathChange, initialPath }: P
         return;
       }
 
-      // Start drag for adding/extending control handle
       const p = points[anchor];
+      if (e.altKey) {
+        dragRef.current = {
+          type: "new_control" as const,
+          pointIdx: anchor,
+          startX: e.clientX, startY: e.clientY,
+          origX: p.x, origY: p.y,
+          origCx1: p.cx1, origCy1: p.cy1,
+          origCx2: p.cx2, origCy2: p.cy2,
+        };
+        return;
+      }
+
+      // Start drag for adding/extending control handle
       dragRef.current = {
         type: "anchor",
         pointIdx: anchor,
@@ -176,7 +188,15 @@ export function BezierPathEditor({ width, height, onPathChange, initialPath }: P
     const newPt: BezierPoint = { x: cx, y: cy, cx1: 0, cy1: 0, cx2: 0, cy2: 0 };
     setPoints((prev) => [...prev, newPt]);
     setSelectedIdx(points.length);
-  }, [width, height, getPointAt, getControlAt, points.length, selectedIdx]);
+    dragRef.current = {
+      type: "new_control" as const,
+      pointIdx: points.length,
+      startX: e.clientX, startY: e.clientY,
+      origX: cx, origY: cy,
+      origCx1: 0, origCy1: 0,
+      origCx2: 0, origCy2: 0,
+    };
+  }, [width, height, getPointAt, getControlAt, points, selectedIdx]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current || !svgRef.current) return;
@@ -202,6 +222,11 @@ export function BezierPathEditor({ width, height, onPathChange, initialPath }: P
       } else if (type === "control2") {
         p.cx2 = cx - p.x;
         p.cy2 = cy - p.y;
+      } else if (type === "new_control") {
+        p.cx2 = cx - p.x;
+        p.cy2 = cy - p.y;
+        p.cx1 = -p.cx2;
+        p.cy1 = -p.cy2;
       }
 
       next[pointIdx] = p;

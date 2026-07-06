@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useEditorStore } from "./editorStore";
 import { CANVAS_PRESETS } from "./types";
-import type { ExportFormat, DesignElement, Page } from "./types";
-import { layersToBackground, hasActiveLayers } from "./backgroundUtils";
+import type { ExportFormat } from "./types";
+import { generateJsx } from "./jsxSerializer";
+import { parseJsx } from "./jsxParser";
 
 interface Props {
   onExport: (format: ExportFormat, pages?: number | number[], scale?: number) => void;
@@ -20,176 +21,8 @@ const iconBtn =
 
 const divider = "w-px h-6 bg-border";
 
-function pageOffset(pages: Page[], index: number, gap: number): number {
-  let off = 0;
-  for (let i = 0; i < index; i++) off += pages[i].width + gap;
-  return off;
-}
 
-function generateJsx(elements: DesignElement[], pages: Page[], pageGap: number, store: {
-  showGrid: boolean; snapToGrid: boolean; showRulers: boolean; guideMode: string; gridSize: number; zoom: number; guides: GuideData[];
-}): string {
-  const q = (v: unknown) => (v === undefined || v === null ? undefined : `"${String(v).replace(/"/g, "&quot;")}"`);
-  const attr = (k: string, v?: unknown) =>
-    v !== undefined && v !== null ? ` ${k}=${q(v)}` : "";
 
-  let out = "<project>\n";
-
-  out += `  <config${attr("pageGap", pageGap)}${attr("showGrid", store.showGrid || undefined)}${attr("snapToGrid", store.snapToGrid || undefined)}${attr("showRulers", store.showRulers || undefined)}${attr("guideMode", store.guideMode !== "page" ? store.guideMode : undefined)}${attr("gridSize", store.gridSize !== 20 ? store.gridSize : undefined)}${attr("zoom", store.zoom !== 0.5 ? Math.round(store.zoom * 100) : undefined)}>\n`;
-  for (const g of store.guides) {
-    out += `    <guide${attr("position", g.position)}${attr("orientation", g.orientation)}${attr("pageId", g.pageId)} />\n`;
-  }
-  out += "  </config>\n";
-
-  for (let pi = 0; pi < pages.length; pi++) {
-    const pg = pages[pi];
-    const startX = pageOffset(pages, pi, pageGap);
-    const endX = startX + pg.width;
-
-    const pageBgStyle = hasActiveLayers(pg.bgLayers) ? layersToBackground(pg.bgLayers) : null;
-    out += `  <page width="${pg.width}" height="${pg.height}" bgColor="${pg.bgColor}"${attr("bgStyle", pageBgStyle)}>\n`;
-
-    const pageEls = elements.filter((el) => el.x >= startX && el.x < endX);
-
-    for (const el of pageEls) {
-      const rx = el.x - startX;
-      const pos = attr("x", rx) + attr("y", el.y) + attr("w", el.width) + attr("h", el.height);
-      const elBgStyle = hasActiveLayers(el.bgLayers) ? layersToBackground(el.bgLayers) : null;
-
-      if (el.type === "text") {
-        const txt = (el.text ?? "").replace(/"/g, "&quot;");
-        out += `    <text${pos}${attr("fontSize", el.fontSize)}${attr("fontFamily", el.fontFamily)}${attr("fontWeight", el.fontWeight !== 400 ? el.fontWeight : undefined)}${attr("fontStyle", el.fontStyle !== "normal" ? el.fontStyle : undefined)}${attr("color", el.color)}${attr("textAlign", el.textAlign)}${attr("opacity", el.opacity !== 1 ? el.opacity : undefined)}${attr("rotation", el.rotation || undefined)}${attr("bgStyle", elBgStyle)}>${txt}</text>\n`;
-      } else if (el.type === "image") {
-        out += `    <image${pos}${attr("src", el.src)}${attr("bgStyle", elBgStyle)} />\n`;
-      } else {
-        out += `    <figure${pos}${attr("bgColor", el.backgroundColor)}${attr("borderRadius", el.borderRadius)}${attr("type", el.shapeKind)}${attr("bgStyle", elBgStyle)} />\n`;
-      }
-    }
-
-    out += "  </page>\n";
-  }
-
-  out += "</project>\n";
-  return out;
-}
-
-interface GuideData {
-  id: string; position: number; orientation: "horizontal" | "vertical"; pageId?: string;
-}
-
-interface ParsedProject {
-  elements: DesignElement[];
-  pages: Page[];
-  pageGap: number;
-  guides: GuideData[];
-  config: Record<string, string>;
-}
-
-function parseJsx(xml: string):
-  | { ok: true; data: ParsedProject }
-  | { ok: false; error: string }
-{
-  try {
-    const doc = new DOMParser().parseFromString(xml, "text/xml");
-    const errEl = doc.querySelector("parsererror");
-    if (errEl) return { ok: false, error: `XML parse error: ${errEl.textContent}` };
-
-    const root = doc.documentElement;
-    if (!root) return { ok: false, error: "Empty document" };
-    if (root.tagName !== "project") return { ok: false, error: "Root tag must be <project>, got <" + root.tagName + ">" };
-
-    const configEl = root.querySelector(":scope > config");
-    const config: Record<string, string> = {};
-    const guides: GuideData[] = [];
-    if (configEl) {
-      for (const { name, value } of Array.from(configEl.attributes)) {
-        config[name] = value;
-      }
-      for (const guideEl of configEl.querySelectorAll(":scope > guide")) {
-        const pos = parseFloat(guideEl.getAttribute("position") || "0");
-        const orient = guideEl.getAttribute("orientation") as "horizontal" | "vertical";
-        const pid = guideEl.getAttribute("pageId") || undefined;
-        if (orient) {
-          guides.push({ id: `guide_${guides.length + 1}`, position: pos, orientation: orient, pageId: pid });
-        }
-      }
-    }
-
-    const pageNodes = root.querySelectorAll(":scope > page");
-    if (pageNodes.length === 0) return { ok: false, error: 'No <page> elements found inside <project>' };
-
-    const pages: Page[] = [];
-    const elements: DesignElement[] = [];
-    const pageGap = parseInt(config.pageGap || "0", 10);
-
-    for (let pi = 0; pi < pageNodes.length; pi++) {
-      const pg = pageNodes[pi];
-      const w = parseInt(pg.getAttribute("width") || "1080", 10);
-      const h = parseInt(pg.getAttribute("height") || "1920", 10);
-      const bg = pg.getAttribute("bgColor") || "#1a1a2e";
-
-      pages.push({ id: `page_${pi + 1}`, name: `Page ${pi + 1}`, width: w, height: h, bgColor: bg });
-
-      const startX = pageOffset(pages, pi, pageGap);
-      const children = pg.querySelectorAll(":scope > text, :scope > image, :scope > figure");
-
-      for (const el of children) {
-        const tag = el.tagName.toLowerCase();
-        const rx = parseFloat(el.getAttribute("x") || "0");
-        const ry = parseFloat(el.getAttribute("y") || "0");
-        const rw = parseFloat(el.getAttribute("w") || "100");
-        const rh = parseFloat(el.getAttribute("h") || "100");
-
-        const base = {
-          x: rx + startX,
-          y: ry,
-          width: rw,
-          height: rh,
-          rotation: parseFloat(el.getAttribute("rotation") || "0"),
-          opacity: parseFloat(el.getAttribute("opacity") || "1"),
-          zIndex: elements.length + 1,
-        };
-
-        if (tag === "text") {
-          elements.push({
-            ...base,
-            id: `el_${elements.length + 1}`,
-            type: "text",
-            text: el.textContent || "Texto",
-            fontSize: parseInt(el.getAttribute("fontSize") || "32", 10),
-            fontFamily: el.getAttribute("fontFamily") || "system-ui, sans-serif",
-            fontWeight: parseInt(el.getAttribute("fontWeight") || "400", 10),
-            fontStyle: (el.getAttribute("fontStyle") as "normal" | "italic") || "normal",
-            color: el.getAttribute("color") || "#ffffff",
-            textAlign: (el.getAttribute("textAlign") as "left" | "center" | "right") || "left",
-          });
-        } else if (tag === "image") {
-          elements.push({
-            ...base,
-            id: `el_${elements.length + 1}`,
-            type: "image",
-            src: el.getAttribute("src") || "",
-          });
-        } else if (tag === "figure") {
-          elements.push({
-            ...base,
-            id: `el_${elements.length + 1}`,
-            type: "shape",
-            shapeKind: (el.getAttribute("type") as any) || "rect",
-            backgroundColor: el.getAttribute("bgColor") || "#4f46e5",
-            borderColor: "transparent",
-            borderWidth: 0,
-            borderRadius: parseFloat(el.getAttribute("borderRadius") || "0"),
-          });
-        }
-      }
-    }
-
-    return { ok: true, data: { elements, pages, pageGap, guides, config } };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) };
-  }
-}
 
 function ErrorModal({ error, onClose }: { error: ErrorInfo; onClose: () => void }) {
   return (
@@ -261,6 +94,17 @@ export function TopBar({ onExport, exporting, progress }: Props) {
   const [exportScale, setExportScale] = useState(2);
   const [exportPages, setExportPages] = useState("all");
 
+  // Install bridge functions on window so ChatPanel can call generateJsx / parseJsx
+  // without creating a circular import between TopBar and ChatPanel.
+  useEffect(() => {
+    (window as any).__ds_generateJsx = generateJsx;
+    (window as any).__ds_parseJsx = parseJsx;
+    return () => {
+      delete (window as any).__ds_generateJsx;
+      delete (window as any).__ds_parseJsx;
+    };
+  }, []);
+
   useEffect(() => {
     if (!showExportMenu && !showExportDialog && !showPresets && !showGapConfig && !showRulerConfig) return;
     const handler = (e: MouseEvent) => {
@@ -284,7 +128,8 @@ export function TopBar({ onExport, exporting, progress }: Props) {
   const handleExportJsx = () => {
     try {
       const state = useEditorStore.getState();
-      const code = generateJsx(state.elements, state.pages, state.pageGap, state);
+      // llmMode=true: strips base64 image data so the file stays small for LLMs
+      const code = generateJsx(state.elements, state.pages, state.pageGap, state, true);
       const blob = new Blob([code], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -336,10 +181,24 @@ export function TopBar({ onExport, exporting, progress }: Props) {
       if (name.endsWith(".jsx")) {
         const result = parseJsx(content);
         if (!result.ok) {
-          setError({ title: "Failed to parse .jsx file", message: result.error + "\n\nFile: " + file.name});
+          setError({ title: "Failed to parse .jsx file", message: result.error + "\n\nFile: " + file.name });
           return;
         }
         const { elements, pages, pageGap, guides, config } = result.data;
+
+        // Restore base64 image data from current session for LLM-JSX files
+        const currentState = useEditorStore.getState();
+        for (const el of elements) {
+          if (el.type === "image" && el.src && el.src.startsWith("@base64_img_")) {
+            const oldEl = currentState.elements.find((e) => e.id === el.id);
+            if (oldEl && oldEl.type === "image" && oldEl.src) {
+              el.src = oldEl.src;
+            } else {
+              console.warn(`Could not restore image data for ${el.id}`);
+            }
+          }
+        }
+
         const first = pages[0];
         const patch: Record<string, any> = {
           projectName: file.name.replace(/\.jsx$/i, ""),
@@ -423,7 +282,8 @@ export function TopBar({ onExport, exporting, progress }: Props) {
   const handleSave = () => {
     try {
       const state = useEditorStore.getState();
-      const code = generateJsx(state.elements, state.pages, state.pageGap, state);
+      // llmMode=false: save keeps full base64 so the project is complete when reopened
+      const code = generateJsx(state.elements, state.pages, state.pageGap, state, false);
       const blob = new Blob([code], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -577,17 +437,15 @@ export function TopBar({ onExport, exporting, progress }: Props) {
             <div className="text-[11px] text-muted-foreground mb-1.5 font-medium">Modo de guías</div>
             <div className="flex gap-2">
               <button onClick={() => setGuideMode("page")}
-                className={`flex-1 h-7 rounded border text-xs cursor-pointer ${
-                  guideMode === "page"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-transparent text-muted-foreground hover:text-foreground"
-                }`}>Por página</button>
+                className={`flex-1 h-7 rounded border text-xs cursor-pointer ${guideMode === "page"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+                  }`}>Por página</button>
               <button onClick={() => setGuideMode("global")}
-                className={`flex-1 h-7 rounded border text-xs cursor-pointer ${
-                  guideMode === "global"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-transparent text-muted-foreground hover:text-foreground"
-                }`}>Global</button>
+                className={`flex-1 h-7 rounded border text-xs cursor-pointer ${guideMode === "global"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+                  }`}>Global</button>
             </div>
           </div>
         )}
@@ -671,11 +529,10 @@ export function TopBar({ onExport, exporting, progress }: Props) {
       {/* Export */}
       <div ref={exportRef} className="relative">
         <button
-          className={`px-5 py-2 border-none rounded-lg text-sm font-semibold cursor-pointer ${
-            exporting
-              ? "bg-muted text-muted-foreground opacity-70"
-              : "bg-primary text-primary-foreground hover:bg-primary/90"
-          }`}
+          className={`px-5 py-2 border-none rounded-lg text-sm font-semibold cursor-pointer ${exporting
+            ? "bg-muted text-muted-foreground opacity-70"
+            : "bg-primary text-primary-foreground hover:bg-primary/90"
+            }`}
           onClick={() => { if (!exporting) setShowExportDialog(true); }}
           disabled={exporting}
         >
@@ -699,11 +556,10 @@ export function TopBar({ onExport, exporting, progress }: Props) {
                 {(["png", "jpg", "webp"] as ExportFormat[]).map((fmt) => (
                   <button key={fmt}
                     onClick={() => setExportFormat(fmt)}
-                    className={`flex-1 h-8 rounded border text-xs cursor-pointer font-medium ${
-                      exportFormat === fmt
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-transparent text-muted-foreground hover:text-foreground"
-                    }`}>
+                    className={`flex-1 h-8 rounded border text-xs cursor-pointer font-medium ${exportFormat === fmt
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+                      }`}>
                     .{fmt.toUpperCase()}
                   </button>
                 ))}
@@ -716,11 +572,10 @@ export function TopBar({ onExport, exporting, progress }: Props) {
                 {[1, 2, 3, 4].map((s) => (
                   <button key={s}
                     onClick={() => setExportScale(s)}
-                    className={`flex-1 h-8 rounded border text-xs cursor-pointer font-medium ${
-                      exportScale === s
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-transparent text-muted-foreground hover:text-foreground"
-                    }`}>
+                    className={`flex-1 h-8 rounded border text-xs cursor-pointer font-medium ${exportScale === s
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+                      }`}>
                     {s}x
                   </button>
                 ))}

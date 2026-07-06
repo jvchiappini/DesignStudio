@@ -230,7 +230,12 @@ function clipMaskStyle(mask: ClipMask): CSSProperties {
       case "ellipse": return `ellipse(${mask.value || "50% 50%"})`;
       case "polygon": return `polygon(${mask.value || "50% 0%, 100% 50%, 50% 100%, 0% 50%"})`;
       case "inset": return `inset(${mask.value || "10%"})`;
-      case "path": return `path('${mask.value || ""}')`;
+      case "path": {
+        let v = mask.value || "";
+        if (v.startsWith("'") && v.endsWith("'")) v = v.substring(1, v.length - 1);
+        if (v.startsWith('"') && v.endsWith('"')) v = v.substring(1, v.length - 1);
+        return `path('${v}')`;
+      }
       default: return "none";
     }
   })();
