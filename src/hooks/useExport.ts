@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { ExportFormat } from "../editor/types";
+import type { ExportFormat } from "../editor/utils/types";
 
 export function useExport() {
   const [exporting, setExporting] = useState(false);

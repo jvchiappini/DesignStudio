@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { useEditorStore } from "./editorStore";
-import { CANVAS_PRESETS } from "./types";
-import type { ExportFormat } from "./types";
-import { generateJsx } from "./jsxSerializer";
-import { parseJsx } from "./jsxParser";
+import { useEditorStore } from "../../store/editorStore";
+import { CANVAS_PRESETS } from "../../utils/types";
+import type { ExportFormat } from "../../utils/types";
+import { generateJsx } from "../../utils/jsxSerializer";
+import { parseJsx } from "../../utils/jsxParser";
+import { optimizeBase64Image } from "../../utils/imageOptimizer";
 
 interface Props {
   onExport: (format: ExportFormat, pages?: number | number[], scale?: number) => void;
@@ -153,7 +154,7 @@ export function TopBar({ onExport, exporting, progress }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result !== "string") {
         setError({ title: "Read file failed", message: "FileReader returned non-string result" });
         return;
@@ -186,15 +187,28 @@ export function TopBar({ onExport, exporting, progress }: Props) {
         }
         const { elements, pages, pageGap, guides, config } = result.data;
 
-        // Restore base64 image data from current session for LLM-JSX files
+        // Restore and optimize base64 image data
         const currentState = useEditorStore.getState();
         for (const el of elements) {
-          if (el.type === "image" && el.src && el.src.startsWith("@base64_img_")) {
-            const oldEl = currentState.elements.find((e) => e.id === el.id);
-            if (oldEl && oldEl.type === "image" && oldEl.src) {
-              el.src = oldEl.src;
-            } else {
-              console.warn(`Could not restore image data for ${el.id}`);
+          if (el.type === "image" && el.src) {
+            if (el.src.startsWith("@base64_img_")) {
+              const oldEl = currentState.elements.find((e) => e.id === el.id);
+              if (oldEl && oldEl.type === "image" && oldEl.src) {
+                el.src = oldEl.src;
+              } else {
+                console.warn(`Could not restore image data for ${el.id}`);
+              }
+            }
+
+            // Auto-compress existing raw base64 data to webp if applicable
+            if (el.src.startsWith("data:image/")) {
+              try {
+                const { dataUrl, summary } = await optimizeBase64Image(el.src);
+                console.log(`[Load optimization] ${summary}`);
+                el.src = dataUrl;
+              } catch (err) {
+                console.error("Error optimizando imagen al cargar:", err);
+              }
             }
           }
         }

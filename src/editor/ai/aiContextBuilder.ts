@@ -1,5 +1,5 @@
 import type { AiContext } from "./aiToolTypes";
-import type { DesignElement, CropPreview } from "../types";
+import type { DesignElement, ShapeKind } from "../utils/types";
 
 export function buildAiContext(
   store: {
@@ -11,9 +11,7 @@ export function buildAiContext(
     removeElement: (id: string) => void;
     addElement: (el: DesignElement) => void;
     addText: (overrides?: Partial<DesignElement>) => void;
-    addShape: (kind: string, overrides?: Partial<DesignElement>) => void;
-    setCropPreview: (preview: CropPreview | null) => void;
-    getCropPreview: () => CropPreview | null;
+    addShape: (kind: ShapeKind, overrides?: Partial<DesignElement>) => void;
   },
 ): AiContext {
   const page = store.pages[store.activePageIndex];
@@ -26,8 +24,6 @@ export function buildAiContext(
     addElement: store.addElement,
     addText: store.addText,
     addShape: store.addShape,
-    setCropPreview: store.setCropPreview,
-    getCropPreview: store.getCropPreview,
     canvasSize: { width: page?.width ?? 1080, height: page?.height ?? 1920 },
     activePage: page ?? { id: "", name: "Default", width: 1080, height: 1920, bgColor: "#1a1a2e" },
     getElementsSummary: () =>

@@ -1,4 +1,4 @@
-import type { DesignElement, CropPreview } from "../types";
+import type { DesignElement, ShapeKind } from "../utils/types";
 
 export interface AiTool {
   name: string;
@@ -23,11 +23,7 @@ export interface AiContext {
   /** Add text element */
   addText: (overrides?: Partial<DesignElement>) => void;
   /** Add shape element */
-  addShape: (kind: string, overrides?: Partial<DesignElement>) => void;
-  /** Set crop preview (visual feedback before confirming) */
-  setCropPreview: (preview: CropPreview | null) => void;
-  /** Get the current pending crop preview */
-  getCropPreview: () => CropPreview | null;
+  addShape: (kind: ShapeKind, overrides?: Partial<DesignElement>) => void;
   /** Get the current canvas/page dimensions */
   canvasSize: { width: number; height: number };
   /** Get current page info */

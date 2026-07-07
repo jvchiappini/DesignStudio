@@ -1,4 +1,4 @@
-import { useEditorStore } from "../editorStore";
+import { useEditorStore } from "../store/editorStore";
 
 // Certain properties need specific parsing rather than auto-inferencing from existing state
 function parseSpecialValue(key: string, val: string): any {
@@ -35,7 +35,7 @@ function parseSpecialValue(key: string, val: string): any {
     return val;
 }
 
-import { parseJsx } from "../jsxParser";
+import { parseJsx } from "../utils/jsxParser";
 
 export function applyPatch(xml: string): { ok: boolean; error?: string } {
     try {

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DesignElement, ShapeKind, SidebarTab, RightTab, Page, CropPreview, LeftPanelTab } from "./types";
+import type { DesignElement, ShapeKind, SidebarTab, RightTab, Page, CropPreview, LeftPanelTab } from "../utils/types";
 
 let nextId = 1;
 let nextPageId = 1;
@@ -46,6 +46,8 @@ interface EditorStore {
   leftPanelTab: LeftPanelTab;
   canvasBgColor: string;
   zoom: number;
+  panX: number;
+  panY: number;
   sidebarTab: SidebarTab | null;
   rightTab: RightTab | null;
 
@@ -125,6 +127,8 @@ interface EditorStore {
   setZoom: (z: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
+  setPan: (x: number, y: number) => void;
+  centerOnElements: () => void;
   setSidebarTab: (tab: SidebarTab | null) => void;
   setRightTab: (tab: RightTab | null) => void;
   setEditingTextId: (id: string | null) => void;
@@ -199,6 +203,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   carouselWidth: (() => { const ps = saved.pages ?? defaultPages(); return ps.reduce((s, p) => s + p.width, 0) + (ps.length - 1) * 40; })(),
   carouselHeight: (() => { const ps = saved.pages ?? defaultPages(); return Math.max(...ps.map((p) => p.height)); })(),
   zoom: 0.5,
+  panX: 0,
+  panY: 0,
   sidebarTab: "elements",
   rightTab: null,
   chatOpen: false,
@@ -708,6 +714,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setZoom: (z) => set({ zoom: Math.max(0.1, Math.min(5, z)) }),
   zoomIn: () => set((s) => ({ zoom: Math.min(5, s.zoom + 0.1) })),
   zoomOut: () => set((s) => ({ zoom: Math.max(0.1, s.zoom - 0.1) })),
+  setPan: (x, y) => set({ panX: x, panY: y }),
+  centerOnElements: () => {
+    const { elements, zoom } = get();
+    if (elements.length === 0) { set({ panX: 0, panY: 0 }); return; }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const el of elements) {
+      if (el.x < minX) minX = el.x;
+      if (el.y < minY) minY = el.y;
+      if (el.x + el.width > maxX) maxX = el.x + el.width;
+      if (el.y + el.height > maxY) maxY = el.y + el.height;
+    }
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    set({ panX: -centerX * zoom, panY: -centerY * zoom });
+  },
   setSidebarTab: (tab) => set({ sidebarTab: tab }),
   setRightTab: (tab) => set({ rightTab: tab }),
   setEditingTextId: (id) => set({ editingTextId: id }),

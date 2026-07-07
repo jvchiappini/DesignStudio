@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { loadGoogleFont } from "../editor/googleFonts";
+import { loadGoogleFont } from "../editor/utils/googleFonts";
 
 const STORAGE_KEY = "design-studio-fonts";
 

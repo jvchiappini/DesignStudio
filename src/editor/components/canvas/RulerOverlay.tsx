@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
-import { useEditorStore } from "./editorStore";
+import { useEditorStore } from "../../store/editorStore";
 
 const RULER_SIZE = 20;
 const TICK_STEPS = [1, 5, 10, 25, 50, 100, 250, 500];

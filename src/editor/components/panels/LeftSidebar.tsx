@@ -1,10 +1,11 @@
 import { useRef, useCallback, useState } from "react";
-import { useEditorStore } from "./editorStore";
-import type { SidebarTab, ShapeKind, BackgroundLayer } from "./types";
-import { BackgroundLayerEditor } from "./BackgroundLayerEditor";
-import { useFontLoader } from "../hooks/useFontLoader";
-import { IconPicker } from "./IconPicker";
-import { QRGenerator } from "./QRGenerator";
+import { useEditorStore } from "../../store/editorStore";
+import type { SidebarTab, ShapeKind, BackgroundLayer } from "../../utils/types";
+import { BackgroundLayerEditor } from "../tools/BackgroundLayerEditor";
+import { useFontLoader } from "../../../hooks/useFontLoader";
+import { IconPicker } from "../tools/IconPicker";
+import { QRGenerator } from "../tools/QRGenerator";
+import { optimizeImage } from "../../utils/imageOptimizer";
 
 const TAB_ICONS: Record<SidebarTab, string> = {
   templates: "◈", elements: "◇", text: "T",
@@ -74,11 +75,16 @@ export function LeftSidebar() {
   };
 
   const handleImgUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]; if (!file) return;
-      const r = new FileReader();
-      r.onload = () => { if (typeof r.result === "string") addImage(r.result); };
-      r.readAsDataURL(file); e.target.value = "";
+      try {
+        const { dataUrl, summary } = await optimizeImage(file);
+        console.log(`[Image Optimization] ${summary}`);
+        addImage(dataUrl);
+      } catch (err) {
+        console.error("Error optimizando imagen:", err);
+      }
+      e.target.value = "";
     }, [addImage],
   );
 
@@ -134,7 +140,7 @@ export function LeftSidebar() {
             <>
               <h3 className="text-sm font-semibold text-foreground mb-4">Formas</h3>
               <div className="grid grid-cols-2 gap-2">
-                  {(["rect", "circle", "triangle", "star", "line"] as ShapeKind[]).map((k) => (
+                {(["rect", "circle", "triangle", "star", "line"] as ShapeKind[]).map((k) => (
                   <button
                     key={k}
                     draggable
@@ -224,11 +230,10 @@ export function LeftSidebar() {
                     onChange={(e) => setCanvasBgColor(e.target.value)}
                     className="w-10 h-10 border-none p-0 cursor-pointer shrink-0" />
                   <button onClick={() => setCanvasBgColor("transparent")}
-                    className={`h-8 px-2 text-[10px] border rounded cursor-pointer leading-none ${
-                      (!canvasBgColor || canvasBgColor === "transparent")
-                        ? "bg-accent text-foreground border-primary"
-                        : "bg-transparent text-muted-foreground border-border"
-                    }`}>
+                    className={`h-8 px-2 text-[10px] border rounded cursor-pointer leading-none ${(!canvasBgColor || canvasBgColor === "transparent")
+                      ? "bg-accent text-foreground border-primary"
+                      : "bg-transparent text-muted-foreground border-border"
+                      }`}>
                     Transparente
                   </button>
                 </div>
@@ -264,8 +269,8 @@ export function LeftSidebar() {
                 const badgeLetter = el.type === "text" ? "T" : el.type === "image" ? "I" : el.type === "shape" ? "S" : "V";
                 const label =
                   el.type === "text" ? (el.text ?? "texto").slice(0, 20) :
-                  el.type === "image" ? "Imagen" :
-                  el.type === "shape" ? (el.shapeKind ?? "forma") : "SVG";
+                    el.type === "image" ? "Imagen" :
+                      el.type === "shape" ? (el.shapeKind ?? "forma") : "SVG";
 
                 return (
                   <div key={el.id}

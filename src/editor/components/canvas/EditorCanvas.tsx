@@ -1,14 +1,14 @@
 import { useRef, useCallback, useState, useEffect, useMemo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useEditorStore } from "./editorStore";
-import { renderElementContent } from "./renderElement";
-import type { ResizeHandle } from "./types";
-import { PathEditor } from "./PathEditor";
+import { useEditorStore } from "../../store/editorStore";
+import { renderElementContent } from "../../utils/renderElement";
+import type { ResizeHandle } from "../../utils/types";
+import { PathEditor } from "../tools/PathEditor";
 import { GridOverlay } from "./GridOverlay";
 import { RulerOverlay } from "./RulerOverlay";
 import { GuideOverlay } from "./GuideOverlay";
 import { CropOverlay } from "./CropOverlay";
 import { CropPreviewOverlay } from "./CropPreviewOverlay";
-import { layersToBackground, hasActiveLayers } from "./backgroundUtils";
+import { layersToBackground, hasActiveLayers } from "../../utils/backgroundUtils";
 
 interface DragState {
   elementId: string;
@@ -49,8 +49,10 @@ export function EditorCanvas() {
   const [rotatingId, setRotatingId] = useState<string | null>(null);
   const rotationRef = useRef({ startAngle: 0, elCenterX: 0, elCenterY: 0 });
 
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const panRef = useRef({ x: 0, y: 0 });
+  const panX = useEditorStore((s) => s.panX);
+  const panY = useEditorStore((s) => s.panY);
+  const setPan = useEditorStore((s) => s.setPan);
+  const panRef = useRef({ x: panX, y: panY });
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef({ startX: 0, startY: 0, startPanX: 0, startPanY: 0 });
 
@@ -96,7 +98,7 @@ export function EditorCanvas() {
         y: dy - (dy - curPan.y) * (newZoom / oldZoom),
       };
       panRef.current = nextPan;
-      setPan(nextPan);
+      setPan(nextPan.x, nextPan.y);
     };
     el.addEventListener("wheel", handler, { passive: false });
     return () => el.removeEventListener("wheel", handler);
@@ -112,6 +114,10 @@ export function EditorCanvas() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+
+  useEffect(() => {
+    panRef.current = { x: panX, y: panY };
+  }, [panX, panY]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent, elId: string, handle: ResizeHandle | null) => {
@@ -219,7 +225,7 @@ export function EditorCanvas() {
         const dy = e.clientY - startY;
         const nextPan = { x: startPanX + dx, y: startPanY + dy };
         panRef.current = nextPan;
-        setPan(nextPan);
+        setPan(nextPan.x, nextPan.y);
         return;
       }
 
@@ -482,7 +488,7 @@ export function EditorCanvas() {
     position: "absolute",
     left: "50%",
     top: "50%",
-    transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+    transform: `translate(-50%, -50%) translate(${panX}px, ${panY}px) scale(${zoom})`,
     transformOrigin: "center center",
   };
 
@@ -499,7 +505,7 @@ export function EditorCanvas() {
       onDrop={handleDrop}
       onContextMenu={handleContextMenu}
     >
-      <RulerOverlay containerRef={containerRef} panOffset={pan} />
+      <RulerOverlay containerRef={containerRef} panOffset={{ x: panX, y: panY }} />
       <div style={transformStyle}>
         <div
           ref={canvasRef}

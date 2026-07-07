@@ -1,4 +1,4 @@
-import { useEditorStore } from "./editorStore";
+import { useEditorStore } from "../../store/editorStore";
 
 export function CropPreviewOverlay() {
   const preview = useEditorStore((s) => s.cropPreview);

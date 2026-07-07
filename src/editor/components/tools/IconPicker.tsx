@@ -1,5 +1,5 @@
-import { useEditorStore } from "./editorStore";
-import { ICONS } from "./icons";
+import { useEditorStore } from "../../store/editorStore";
+import { ICONS } from "../../utils/icons";
 
 export function IconPicker() {
   const addSvg = useEditorStore((s) => s.addSvg);

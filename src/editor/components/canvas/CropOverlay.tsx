@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useEditorStore } from "./editorStore";
-import { applyCrop } from "./cropUtils";
-import { BezierPathEditor } from "./BezierPathEditor";
+import { useEditorStore } from "../../store/editorStore";
+import { applyCrop } from "../../utils/cropUtils";
+import { BezierPathEditor } from "../tools/BezierPathEditor";
 
 type Corner = "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
 
@@ -29,7 +29,7 @@ const CLIP_PRESETS: { label: string; path: string }[] = [
 
 type ClipEditMode = "text" | "visual";
 
-import type { DesignElement } from "./types";
+import type { DesignElement } from "../../utils/types";
 
 export function CropOverlay() {
   const cropElementId = useEditorStore((s) => s.cropElementId);

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { DesignElement } from "../editor/types";
+import type { DesignElement } from "../editor/utils/types";
 
 type OpenTypeModule = {
   parse: (buf: ArrayBuffer) => {

@@ -1,13 +1,13 @@
 import { useCallback, useEffect } from "react";
-import { TopBar } from "./editor/TopBar";
-import { LeftSidebar } from "./editor/LeftSidebar";
-import { EditorCanvas } from "./editor/EditorCanvas";
-import { RightPanel } from "./editor/RightPanel";
-import { ChatPanel } from "./editor/ChatPanel";
-import { BottomBar } from "./editor/BottomBar";
+import { TopBar } from "./editor/components/panels/TopBar";
+import { LeftSidebar } from "./editor/components/panels/LeftSidebar";
+import { EditorCanvas } from "./editor/components/canvas/EditorCanvas";
+import { RightPanel } from "./editor/components/panels/RightPanel";
+import { ChatPanel } from "./editor/components/panels/ChatPanel";
+import { BottomBar } from "./editor/components/panels/BottomBar";
 import { useExport } from "./hooks/useExport";
-import { useEditorStore } from "./editor/editorStore";
-import type { ExportFormat } from "./editor/types";
+import { useEditorStore } from "./editor/store/editorStore";
+import type { ExportFormat } from "./editor/utils/types";
 
 function LoadingOverlay({ visible, progress }: { visible: boolean; progress: number }) {
   if (!visible) return null;

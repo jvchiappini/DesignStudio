@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { useEditorStore } from "./editorStore";
+import { useEditorStore } from "../../store/editorStore";
 
 export function QRGenerator({ onClose }: { onClose: () => void }) {
   const [text, setText] = useState("");
   const [qrSvg, setQrSvg] = useState("");
   const [error, setError] = useState("");
   const addImage = useEditorStore((s) => s.addImage);
-  const addSvg = useEditorStore((s) => s.addSvg);
-  const elements = useEditorStore((s) => s.elements);
 
   const generateQR = async () => {
     if (!text.trim()) { setError("Ingresa un texto o URL"); return; }

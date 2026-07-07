@@ -1,5 +1,5 @@
 import React from "react";
-import { useEditorStore } from "./editorStore";
+import { useEditorStore } from "../../store/editorStore";
 
 interface Props {
   width?: number;

@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useEditorStore } from "./editorStore";
+import { useEditorStore } from "../../store/editorStore";
 
 const GUIDE_COLOR = "rgba(0, 150, 255, 0.6)";
 

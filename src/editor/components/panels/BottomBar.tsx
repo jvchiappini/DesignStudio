@@ -1,4 +1,4 @@
-import { useEditorStore } from "./editorStore";
+import { useEditorStore } from "../../store/editorStore";
 
 export function BottomBar() {
   const zoom = useEditorStore((s) => s.zoom);
@@ -6,6 +6,7 @@ export function BottomBar() {
   const elements = useEditorStore((s) => s.elements);
   const pages = useEditorStore((s) => s.pages);
   const activePageIndex = useEditorStore((s) => s.activePageIndex);
+  const centerOnElements = useEditorStore((s) => s.centerOnElements);
 
   return (
     <div className="flex items-center justify-between h-10 px-4 bg-secondary border-t border-border shrink-0">
@@ -17,6 +18,8 @@ export function BottomBar() {
         <span className="text-xs text-muted-foreground">Página {activePageIndex + 1} de {pages.length}</span>
 
         <div className="w-px h-4 bg-border" />
+
+        <button onClick={centerOnElements} className="text-[10px] text-muted-foreground hover:text-foreground border-none bg-transparent cursor-pointer px-1" title="Centrar vista en los elementos">⌂</button>
 
         <button onClick={() => setZoom(1)} className="text-[10px] text-muted-foreground hover:text-foreground border-none bg-transparent cursor-pointer px-1" title="Zoom 100%">1:1</button>
         <span className="text-xs text-muted-foreground min-w-[32px] text-right tabular-nums">

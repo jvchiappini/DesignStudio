@@ -1,5 +1,8 @@
 import type { AiTool } from "./aiToolTypes";
-import type { DesignElement } from "../types";
+import type { DesignElement } from "../utils/types";
+import { getWikiSection, listWikiSections } from "./wikiContent";
+import { setPreview } from "./previewStore";
+import { capturePageAsDataUrl } from "./capturePage";
 
 // ─── Tool: Get canvas state ───
 
@@ -337,7 +340,131 @@ const duplicateElementTool: AiTool = {
   },
 };
 
+// ─── Tool: Read wiki section ───
+
+const readWikiTool: AiTool = {
+  name: "read_wiki",
+  description: "Read a SPECIFIC section from the AI wiki (ia_wiki). Use this to learn about page parameters, text styling, figures, backgrounds, patches, and examples. Pass a section slug (e.g. 'atributos-del-text', 'formato-de-datos', 'tipos-de-shape'). Use read_wiki_toc first to see available sections. NEVER read entire files — always specify a section.",
+  parameters: {
+    type: "object",
+    properties: {
+      file: {
+        type: "string",
+        enum: ["PAGE", "TEXTS", "FIGURES", "IMAGES", "PARCHES", "FONDOS", "EJEMPLOS"],
+        description: "AI wiki file to read from.",
+      },
+      section: {
+        type: "string",
+        description: "Section slug to read (find slugs via read_wiki_toc). REQUIRED — do not read whole files.",
+      },
+    },
+    required: ["file", "section"],
+  },
+  handler: async (params, _ctx) => {
+    const file = String(params.file ?? "PAGE");
+    const section = String(params.section ?? "");
+    const knownFiles = ["PAGE", "TEXTS", "FIGURES", "IMAGES", "PARCHES", "FONDOS", "EJEMPLOS"];
+    const f = knownFiles.includes(file) ? file : "PAGE";
+    if (!section) return { success: false, message: 'Specify a section slug. Use read_wiki_toc first to see available sections.' };
+
+    // Try ia_wiki first, then fall back to wiki/elements
+    const iaPaths = [`/ia_wiki/${f}.md`];
+    const humanPaths = [`/wiki/elements/${f}.md`];
+    const paths = [...iaPaths, ...humanPaths];
+
+    for (const p of paths) {
+      const content = getWikiSection(p, section);
+      if (content) {
+        return { success: true, message: `Wiki section "${section}" from ${p}:`, data: { content, file: `${f}.md`, section } };
+      }
+    }
+
+    // Not found in any path — suggest close matches
+    for (const p of paths) {
+      const slugs = listWikiSections(p);
+      if (slugs) {
+        const close = slugs.filter((s) => s.slug.includes(section.slice(0, 10)) || s.heading.toLowerCase().includes(section.toLowerCase())).slice(0, 5);
+        if (close.length) {
+          return { success: false, message: `Section "${section}" not found. Did you mean: ${close.map((c) => c.slug).join(", ")}?` };
+        }
+      }
+    }
+    return { success: false, message: `Section "${section}" not found in ${f}.md.` };
+  },
+};
+
+// ─── Tool: Read wiki table of contents ───
+
+const readWikiTocTool: AiTool = {
+  name: "read_wiki_toc",
+  description: "List all available sections in an AI wiki file. ALWAYS call this first to find section slugs before using read_wiki.",
+  parameters: {
+    type: "object",
+    properties: {
+      file: {
+        type: "string",
+        enum: ["PAGE", "TEXTS", "FIGURES", "IMAGES", "PARCHES", "FONDOS", "EJEMPLOS"],
+        description: "AI wiki file to list sections for.",
+      },
+    },
+    required: ["file"],
+  },
+  handler: async (params, _ctx) => {
+    const file = String(params.file ?? "PAGE");
+    const knownFiles = ["PAGE", "TEXTS", "FIGURES", "IMAGES", "PARCHES", "FONDOS", "EJEMPLOS"];
+    const f = knownFiles.includes(file) ? file : "PAGE";
+
+    // Try ia_wiki first, then fall back to wiki/elements
+    const iaPaths = [`/ia_wiki/${f}.md`];
+    const humanPaths = [`/wiki/elements/${f}.md`];
+
+    for (const p of [...iaPaths, ...humanPaths]) {
+      const sections = listWikiSections(p);
+      if (sections) {
+        return { success: true, message: `Sections in ${f}.md (${sections.length}):`, data: { sections, file: `${f}.md` } };
+      }
+    }
+    return { success: false, message: `Wiki file "${f}.md" not found.` };
+  },
+};
+
 // ─── Tool: List available tools ───
+
+const renderPreviewTool: AiTool = {
+  name: "render_preview",
+  description: "Render a specific page as a PNG or JPG image so the AI can visually verify the design. The image is fed directly to vision-capable models.",
+  parameters: {
+    type: "object",
+    properties: {
+      page: { type: "number", description: "Page index (0-based). Default: 0 (first page)." },
+      format: { type: "string", enum: ["png", "jpg"], description: "Image format. 'png' for quality (supports transparency), 'jpg' for smaller file size. Default: png." },
+    },
+  },
+  handler: async (params, _ctx) => {
+    try {
+      const pageIndex = params.page !== undefined ? Number(params.page) : 0;
+      const format = params.format === "jpg" ? "jpg" : "png" as "png" | "jpg";
+
+      const canvasRoot = document.querySelector<HTMLElement>('[data-canvas-root="true"]');
+      if (!canvasRoot) return { success: false, message: "Canvas element not found." };
+
+      const pageEls = canvasRoot.querySelectorAll<HTMLElement>("[data-page]");
+      if (pageEls.length === 0) return { success: false, message: "No pages found on canvas." };
+      if (pageIndex < 0 || pageIndex >= pageEls.length) {
+        return {
+          success: false,
+          message: `Page index ${pageIndex} out of range. Available pages: 0-${pageEls.length - 1} (${pageEls.length} total).`,
+        };
+      }
+
+      const dataUrl = await capturePageAsDataUrl(pageEls[pageIndex], format);
+      setPreview(dataUrl);
+      return { success: true, message: `Página ${pageIndex + 1} capturada en ${format.toUpperCase()}. La imagen se me ha entregado para que la vea.` };
+    } catch (e: any) {
+      return { success: false, message: `Failed to render preview: ${e.message}` };
+    }
+  },
+};
 
 const listToolsTool: AiTool = {
   name: "list_available_tools",
@@ -356,6 +483,9 @@ const listToolsTool: AiTool = {
 // ─── Export all tools ───
 
 export const allTools: AiTool[] = [
+  readWikiTool,
+  readWikiTocTool,
+  renderPreviewTool,
   getCanvasStateTool,
   selectElementTool,
   deleteElementTool,

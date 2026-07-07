@@ -1,4 +1,4 @@
-import type { DesignElement, LayoutConfig } from "./types";
+import type { DesignElement, LayoutConfig } from "../../utils/types";
 
 interface Props {
   el: DesignElement;

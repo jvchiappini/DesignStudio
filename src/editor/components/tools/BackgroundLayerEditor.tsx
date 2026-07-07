@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import type { BackgroundLayer } from "./types";
-import { createDefaultLayer, layerToCss } from "./backgroundUtils";
+import type { BackgroundLayer } from "../../utils/types";
+import { createDefaultLayer, layerToCss } from "../../utils/backgroundUtils";
 
 type BgTarget = { bgLayers?: BackgroundLayer[] };
 type Setter = (layers: BackgroundLayer[]) => void;

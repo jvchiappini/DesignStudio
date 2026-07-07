@@ -1,7 +1,7 @@
 import { useRef, useCallback, useMemo, useState } from "react";
-import { useEditorStore } from "./editorStore";
-import { parseSvgPath, serializeSvgPath, getControlPoints, type BezierPoint } from "../utils/svgPathParser";
-import type { DesignElement } from "./types";
+import { useEditorStore } from "../../store/editorStore";
+import { parseSvgPath, serializeSvgPath, getControlPoints, type BezierPoint } from "../../../utils/svgPathParser";
+import type { DesignElement } from "../../utils/types";
 
 const POINT_SIZE = 8;
 const CONTROL_SIZE = 6;

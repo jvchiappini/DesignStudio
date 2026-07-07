@@ -1,12 +1,13 @@
 ﻿import { useRef, useCallback, useState, useMemo, useEffect } from "react";
-import { useEditorStore } from "./editorStore";
-import type { DesignElement } from "./types";
-import { useFontLoader } from "../hooks/useFontLoader";
-import { useTextToPaths } from "../hooks/useTextToPaths";
-import { svgHasPaths, svgHasTextElements, textSvgToPaths } from "../utils/svgTextToPaths";
-import { BackgroundLayerEditor } from "./BackgroundLayerEditor";
-import { LayoutEditor } from "./LayoutEditor";
-import { GOOGLE_FONTS, loadGoogleFont } from "./googleFonts";
+import { useEditorStore } from "../../store/editorStore";
+import type { DesignElement } from "../../utils/types";
+import { useFontLoader } from "../../../hooks/useFontLoader";
+import { useTextToPaths } from "../../../hooks/useTextToPaths";
+import { svgHasPaths, svgHasTextElements, textSvgToPaths } from "../../../utils/svgTextToPaths";
+import { BackgroundLayerEditor } from "../tools/BackgroundLayerEditor";
+import { LayoutEditor } from "../tools/LayoutEditor";
+import { GOOGLE_FONTS, loadGoogleFont } from "../../utils/googleFonts";
+import { optimizeImage } from "../../utils/imageOptimizer";
 
 function NumField({ label: lbl, value, onChange, min, max, step }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number;
@@ -49,9 +50,8 @@ export function RightPanel() {
   const typeLabel = el ? (el.type === "text" ? "Texto" : el.type === "image" ? "Imagen" : el.type === "shape" ? "Forma" : "SVG") : "";
 
   return (
-    <div className={`absolute right-0 top-0 h-full z-50 transition-transform duration-200 ${
-      isOpen && el ? "translate-x-0" : "translate-x-full"
-    }`}>
+    <div className={`absolute right-0 top-0 h-full z-50 transition-transform duration-200 ${isOpen && el ? "translate-x-0" : "translate-x-full"
+      }`}>
       <div className="w-[280px] h-full bg-card border-l border-border overflow-y-auto p-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -94,15 +94,13 @@ export function RightPanel() {
             <Section title="Voltear">
               <div className="flex gap-2 mb-3">
                 <button onClick={() => updateElement(el.id, { flipH: !el.flipH })}
-                  className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${
-                    el.flipH ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"
-                  }`}>
+                  className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${el.flipH ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"
+                    }`}>
                   ↔ Horizontal
                 </button>
                 <button onClick={() => updateElement(el.id, { flipV: !el.flipV })}
-                  className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${
-                    el.flipV ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"
-                  }`}>
+                  className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${el.flipV ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"
+                    }`}>
                   ↕ Vertical
                 </button>
               </div>
@@ -154,36 +152,42 @@ interface FontEntry { value: string; display: string }
 interface FontGroup { label: string; fonts: FontEntry[] }
 
 const FONT_GROUPS: FontGroup[] = [
-  { label: "Sistema", fonts: [
-    { value: "Inter, system-ui, sans-serif", display: "Inter" },
-    { value: "system-ui, sans-serif", display: "System UI" },
-    { value: "Arial, sans-serif", display: "Arial" },
-    { value: "Arial Black, sans-serif", display: "Arial Black" },
-    { value: "Helvetica, sans-serif", display: "Helvetica" },
-    { value: "Verdana, sans-serif", display: "Verdana" },
-    { value: "'Trebuchet MS', sans-serif", display: "Trebuchet MS" },
-    { value: "'Segoe UI', sans-serif", display: "Segoe UI" },
-    { value: "Tahoma, sans-serif", display: "Tahoma" },
-    { value: "'Century Gothic', sans-serif", display: "Century Gothic" },
-    { value: "Calibri, sans-serif", display: "Calibri" },
-    { value: "Candara, sans-serif", display: "Candara" },
-    { value: "Futura, sans-serif", display: "Futura" },
-    { value: "'Gill Sans', sans-serif", display: "Gill Sans" },
-    { value: "Impact, sans-serif", display: "Impact" },
-    { value: "'Comic Sans MS', cursive", display: "Comic Sans" },
-  ]},
-  { label: "Serif", fonts: [
-    { value: "'Times New Roman', serif", display: "Times New Roman" },
-    { value: "Georgia, serif", display: "Georgia" },
-    { value: "Garamond, serif", display: "Garamond" },
-    { value: "'Book Antiqua', serif", display: "Book Antiqua" },
-    { value: "'Palatino Linotype', serif", display: "Palatino" },
-    { value: "'Lucida Bright', serif", display: "Lucida Bright" },
-  ]},
-  { label: "Monoespaciadas", fonts: [
-    { value: "'Courier New', monospace", display: "Courier New" },
-    { value: "'Lucida Console', monospace", display: "Lucida Console" },
-  ]},
+  {
+    label: "Sistema", fonts: [
+      { value: "Inter, system-ui, sans-serif", display: "Inter" },
+      { value: "system-ui, sans-serif", display: "System UI" },
+      { value: "Arial, sans-serif", display: "Arial" },
+      { value: "Arial Black, sans-serif", display: "Arial Black" },
+      { value: "Helvetica, sans-serif", display: "Helvetica" },
+      { value: "Verdana, sans-serif", display: "Verdana" },
+      { value: "'Trebuchet MS', sans-serif", display: "Trebuchet MS" },
+      { value: "'Segoe UI', sans-serif", display: "Segoe UI" },
+      { value: "Tahoma, sans-serif", display: "Tahoma" },
+      { value: "'Century Gothic', sans-serif", display: "Century Gothic" },
+      { value: "Calibri, sans-serif", display: "Calibri" },
+      { value: "Candara, sans-serif", display: "Candara" },
+      { value: "Futura, sans-serif", display: "Futura" },
+      { value: "'Gill Sans', sans-serif", display: "Gill Sans" },
+      { value: "Impact, sans-serif", display: "Impact" },
+      { value: "'Comic Sans MS', cursive", display: "Comic Sans" },
+    ]
+  },
+  {
+    label: "Serif", fonts: [
+      { value: "'Times New Roman', serif", display: "Times New Roman" },
+      { value: "Georgia, serif", display: "Georgia" },
+      { value: "Garamond, serif", display: "Garamond" },
+      { value: "'Book Antiqua', serif", display: "Book Antiqua" },
+      { value: "'Palatino Linotype', serif", display: "Palatino" },
+      { value: "'Lucida Bright', serif", display: "Lucida Bright" },
+    ]
+  },
+  {
+    label: "Monoespaciadas", fonts: [
+      { value: "'Courier New', monospace", display: "Courier New" },
+      { value: "'Lucida Console', monospace", display: "Lucida Console" },
+    ]
+  },
 ];
 
 const styleBtn =
@@ -283,9 +287,8 @@ function TextFields({ el, updateElement }: {
                     {g.fonts.map((f) => (
                       <button key={f.value}
                         onClick={() => { updateElement(el.id, { fontFamily: f.value }); loadGoogleFont(f.display); setFontPickerOpen(false); }}
-                        className={`w-full px-2.5 py-1.5 border-none bg-transparent text-left text-xs cursor-pointer flex items-center gap-2 hover:bg-accent ${
-                          el.fontFamily === f.value ? "bg-primary/10 text-primary" : "text-popover-foreground"
-                        }`}
+                        className={`w-full px-2.5 py-1.5 border-none bg-transparent text-left text-xs cursor-pointer flex items-center gap-2 hover:bg-accent ${el.fontFamily === f.value ? "bg-primary/10 text-primary" : "text-popover-foreground"
+                          }`}
                         style={{ fontFamily: f.value, fontSize: 14 }}>
                         {f.display}
                       </button>
@@ -640,10 +643,16 @@ function ImageFields({ el, updateElement }: {
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const setCropElementId = useEditorStore((s) => s.setCropElementId);
-  const handleUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    const r = new FileReader(); r.onload = () => { if (typeof r.result === "string") updateElement(el.id, { src: r.result }); };
-    r.readAsDataURL(file); e.target.value = "";
+    try {
+      const { dataUrl, summary } = await optimizeImage(file);
+      console.log(`[Image Optimization] ${summary}`);
+      updateElement(el.id, { src: dataUrl });
+    } catch (err) {
+      console.error("Error optimizando imagen:", err);
+    }
+    e.target.value = "";
   }, [el.id, updateElement]);
 
   const handleCrop = useCallback(() => {
@@ -845,11 +854,10 @@ function SvgFields({ el, updateElement }: {
               setPathEditingId(el.id);
             }
           }}
-            className={`w-full h-9 px-3 border rounded-lg cursor-pointer text-xs flex items-center justify-center gap-1.5 mb-2 ${
-              isPathEditing
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border bg-transparent text-muted-foreground hover:text-foreground"
-            }`}>
+            className={`w-full h-9 px-3 border rounded-lg cursor-pointer text-xs flex items-center justify-center gap-1.5 mb-2 ${isPathEditing
+              ? "bg-primary text-primary-foreground border-primary"
+              : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+              }`}>
             {isPathEditing ? "✕ Salir de edición de paths" : "✎ Editar paths en canvas"}
           </button>
           {isPathEditing && (

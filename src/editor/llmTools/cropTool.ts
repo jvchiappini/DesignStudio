@@ -1,5 +1,5 @@
-import type { DesignElement, ClipMask, CropPreview } from "../types";
-import { applyCropByCoords, getCropRegion, type CropCoords } from "../cropUtils";
+import type { DesignElement, ClipMask, CropPreview } from "../utils/types";
+import { applyCropByCoords, getCropRegion, type CropCoords } from "../utils/cropUtils";
 
 // ─── Tool Schema (OpenAI / Anthropic function calling format) ───
 

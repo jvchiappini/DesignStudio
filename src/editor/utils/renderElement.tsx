@@ -252,6 +252,7 @@ export function renderLayoutChildren(
   const layout = container.layout!;
   const gap = layout.gap ?? 12;
   const pad = layout.padding ?? 16;
+  const isRow = layout.direction === "row";
 
   return children.map((child, i) => {
     const childStyle: CSSProperties = {
@@ -261,6 +262,8 @@ export function renderLayoutChildren(
       height: child.height,
       opacity: child.opacity ?? 1,
       zIndex: child.zIndex,
+      [isRow ? "marginRight" : "marginBottom"]: i < children.length - 1 ? gap : 0,
+      padding: pad,
       ...(child.mixBlendMode ? { mixBlendMode: child.mixBlendMode as CSSProperties["mixBlendMode"] } : {}),
       ...shadowStyle(child),
       ...(child.clipMask ? clipMaskStyle(child.clipMask) : {}),
