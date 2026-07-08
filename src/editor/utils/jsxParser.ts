@@ -308,7 +308,7 @@ export function parseJsx(
 
         const pages: Page[] = [];
         const elements: DesignElement[] = [];
-        const pageGap = config.pageGap ? parseInt(config.pageGap, 10) : 0;
+        const pageGap = config.pageGap ? parseInt(config.pageGap, 10) : 40;
         let elCounter = 1;
 
         for (let pi = 0; pi < pageNodes.length; pi++) {

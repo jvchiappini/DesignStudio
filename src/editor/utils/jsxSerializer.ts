@@ -227,7 +227,7 @@ export function generateJsx(
     // <config>
     out +=
         `  <config` +
-        ca("pageGap", pageGap, 0) +
+        ca("pageGap", pageGap, 40) +
         ca("showGrid", store.showGrid, false) +
         ca("snapToGrid", store.snapToGrid, true) +
         ca("showRulers", store.showRulers, false) +

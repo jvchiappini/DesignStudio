@@ -206,11 +206,16 @@ export async function loadJsxIntoStore(
         //   - If leftAnchorOffset is absent → it was 0 (serialiser omits defaults).
         //   - NEVER back-calculate from el.x; the AI may write a placeholder x.
         if (resolvedGuides.length > 0) {
+            // In AI mode (preserveHistory=true) always use the store's pageGap
+            // for anchor math. Both store and JSX default to 40, but an explicit
+            // mismatch (e.g. user had a custom gap) must not corrupt page offsets.
+            // For file-open (preserveHistory=false) we trust the JSX value as-is.
+            const effectivePageGap = preserveHistory ? store.pageGap : pageGap;
             const pageOffFn = (pageNumber: number | undefined): number => {
                 const idx = pageNumber !== undefined ? pageNumber - 1 : 0;
                 let off = 0;
                 for (let i = 0; i < idx && i < pages.length - 1; i++) {
-                    off += pages[i].width + pageGap;
+                    off += pages[i].width + effectivePageGap;
                 }
                 return off;
             };

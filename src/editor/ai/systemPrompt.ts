@@ -80,7 +80,7 @@ Siempre que el usuario pida "cambiar", "editar", "modificar" o "actualizar", usa
 
 <project> — Contenedor raíz REQUERIDO para todo diseño.
   <config> — Configuración del editor:
-    - pageGap: número (px), espacio entre páginas. Default: 40.
+    - pageGap: número (px), espacio entre páginas. Default: 40. OMITE este atributo si el valor es 40 (el sistema usa 40 por defecto). Escríbelo explícitamente solo si es distinto de 40.
     - showGrid: booleano, muestra cuadrícula. Default: true.
     - snapToGrid: booleano, ajuste a cuadrícula. Default: true.
     - gridSize: número (px), tamaño de cuadrícula. Default: 20.
