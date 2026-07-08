@@ -12,6 +12,8 @@ export interface LlmMessage {
     tool_call_id?: string;
     tool_calls?: ToolCall[];
     name?: string;
+    /** Raw Google parts — preserved as-is to keep thoughtSignature and other fields */
+    _rawParts?: any[];
 }
 
 export interface ToolDefinition {
@@ -24,6 +26,8 @@ export interface ToolCall {
     id: string;
     name: string;
     arguments: string;
+    /** Google Gemini thought signature — must be preserved across turns for function calling */
+    thoughtSignature?: string;
 }
 
 export interface LlmCallOptions {
@@ -34,12 +38,15 @@ export interface LlmCallOptions {
     temperature?: number;
     maxTokens?: number;
     tools?: ToolDefinition[];
+    signal?: AbortSignal;
 }
 
 export interface LlmResponse {
     content: string;
     raw: unknown;
     toolCalls?: ToolCall[];
+    /** Raw Google parts from the assistant turn — must be passed back as-is */
+    _rawParts?: any[];
 }
 
 const PROVIDER_ENDPOINTS: Record<LlmProvider, string> = {
@@ -51,13 +58,13 @@ const PROVIDER_ENDPOINTS: Record<LlmProvider, string> = {
 export const PROVIDER_MODEL_HINTS: Record<LlmProvider, string> = {
     openai: "gpt-4o-mini · gpt-4o · gpt-4-turbo",
     openrouter: "openai/gpt-4o-mini · anthropic/claude-3-haiku · google/gemini-flash-1.5",
-    google: "gemini-2.0-flash · gemini-1.5-flash · gemini-2.0-flash-lite",
+    google: "gemini-3.1-flash-lite · gemini-2.0-flash · gemini-1.5-flash",
 };
 
 export const PROVIDER_DEFAULT_MODELS: Record<LlmProvider, string> = {
     openai: "gpt-4o-mini",
     openrouter: "openai/gpt-4o-mini",
-    google: "gemini-2.0-flash",
+    google: "gemini-3.1-flash-lite",
 };
 
 export const PROVIDER_KEY_PLACEHOLDERS: Record<LlmProvider, string> = {
@@ -67,10 +74,10 @@ export const PROVIDER_KEY_PLACEHOLDERS: Record<LlmProvider, string> = {
 };
 
 export async function callLlm(opts: LlmCallOptions): Promise<LlmResponse> {
-    const { provider, model, apiKey, messages, temperature = 0.7, maxTokens = 8192 } = opts;
+    const { provider, model, apiKey, messages, temperature = 0.7, maxTokens = 8192, signal } = opts;
 
     if (provider === "google") {
-        return callGoogleLlm(model, apiKey, messages, temperature, maxTokens, opts.tools);
+        return callGoogleLlm(model, apiKey, messages, temperature, maxTokens, opts.tools, signal);
     }
 
     // OpenAI / OpenRouter (same schema)
@@ -103,6 +110,7 @@ export async function callLlm(opts: LlmCallOptions): Promise<LlmResponse> {
         method: "POST",
         headers,
         body: JSON.stringify(body),
+        signal,
     });
 
     if (!resp.ok) {
@@ -131,6 +139,7 @@ async function callGoogleLlm(
     temperature: number,
     maxTokens: number,
     tools?: ToolDefinition[],
+    signal?: AbortSignal,
 ): Promise<LlmResponse> {
     const { systemInstruction, contents } = toGoogleMessages(messages);
 
@@ -162,6 +171,7 @@ async function callGoogleLlm(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal,
     });
 
     if (!resp.ok) {
@@ -181,7 +191,7 @@ interface GoogleContent {
 interface GooglePart {
     text?: string;
     inlineData?: { mimeType: string; data: string };
-    functionCall?: { name: string; args: Record<string, unknown> };
+    functionCall?: { name: string; args: Record<string, unknown>; thoughtSignature?: string };
     functionResponse?: { name: string; response: Record<string, unknown> };
 }
 
@@ -191,6 +201,9 @@ function toGoogleMessages(messages: LlmMessage[]): {
 } {
     let systemText: string | null = null;
     const contents: GoogleContent[] = [];
+    /** Track raw function call names from previous assistant message (Google may prefix with default_api:) */
+    let prevRawFunctionNames: string[] | null = null;
+    let prevRawFunctionIdx = 0;
 
     for (const msg of messages) {
         if (msg.role === "system") {
@@ -203,37 +216,58 @@ function toGoogleMessages(messages: LlmMessage[]): {
         if (msg.role === "tool") {
             const name = msg.name || "unknown";
             const responseText = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+            // Use the raw function call name (which may have Google's prefix) if available
+            const responseName = (prevRawFunctionNames && prevRawFunctionIdx < prevRawFunctionNames.length)
+                ? prevRawFunctionNames[prevRawFunctionIdx++]
+                : name;
             contents.push({
                 role: "function",
                 parts: [{
                     functionResponse: {
-                        name,
+                        name: responseName,
                         response: { output: responseText },
                     },
                 }],
             });
+            if (!prevRawFunctionNames) {
+                prevRawFunctionIdx = 0;
+            }
             continue;
         }
+
+        // Use raw parts if available (preserves thoughtSignature and other Google fields)
+        if (msg._rawParts && msg._rawParts.length > 0) {
+            const role = msg.role === "assistant" ? "model" : "user";
+            contents.push({ role, parts: msg._rawParts });
+            // Extract function call names from raw parts for matching with subsequent tool responses
+            prevRawFunctionNames = msg._rawParts
+                .filter((p: any) => p.functionCall)
+                .map((p: any) => p.functionCall.name);
+            prevRawFunctionIdx = 0;
+            continue;
+        }
+
+        // No raw parts — reset tracking
+        prevRawFunctionNames = null;
+        prevRawFunctionIdx = 0;
 
         const parts: GooglePart[] = contentToGoogleParts(msg.content);
 
         if (msg.tool_calls && msg.tool_calls.length > 0) {
             for (const tc of msg.tool_calls) {
+                const fc: any = {
+                    name: tc.name,
+                    args: {},
+                };
                 try {
-                    parts.push({
-                        functionCall: {
-                            name: tc.name,
-                            args: JSON.parse(tc.arguments),
-                        },
-                    });
+                    fc.args = JSON.parse(tc.arguments);
                 } catch {
-                    parts.push({
-                        functionCall: {
-                            name: tc.name,
-                            args: {},
-                        },
-                    });
+                    fc.args = {};
                 }
+                if (tc.thoughtSignature) {
+                    fc.thoughtSignature = tc.thoughtSignature;
+                }
+                parts.push({ functionCall: fc });
             }
         }
 
@@ -298,6 +332,7 @@ function fromGoogleResponse(data: any): LlmResponse {
                 id: `fc_${Date.now()}_${toolCalls.length}`,
                 name: part.functionCall.name,
                 arguments: JSON.stringify(part.functionCall.args || {}),
+                thoughtSignature: part.functionCall.thoughtSignature,
             });
         }
     }
@@ -306,5 +341,6 @@ function fromGoogleResponse(data: any): LlmResponse {
         content: text,
         raw: data,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        _rawParts: parts,
     };
 }

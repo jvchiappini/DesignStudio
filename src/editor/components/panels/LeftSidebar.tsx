@@ -9,16 +9,16 @@ import { optimizeImage } from "../../utils/imageOptimizer";
 
 const TAB_ICONS: Record<SidebarTab, string> = {
   templates: "◈", elements: "◇", text: "T",
-  uploads: "⬆", background: "◉", layers: "≡", pages: "📄", icons: "✦",
+  uploads: "⬆", background: "◉", layers: "≡", pages: "📄", icons: "✦", guides: "⊞",
 };
 
 const TAB_LABELS: Record<SidebarTab, string> = {
   templates: "Plantillas", elements: "Elementos", text: "Texto",
-  uploads: "Subidas", background: "Fondo", layers: "Capas", pages: "Páginas", icons: "Iconos",
+  uploads: "Subidas", background: "Fondo", layers: "Capas", pages: "Páginas", icons: "Iconos", guides: "Guías",
 };
 
 const ALL_TABS: SidebarTab[] = [
-  "templates", "elements", "text", "uploads", "background", "layers", "pages", "icons",
+  "templates", "elements", "text", "uploads", "background", "layers", "pages", "icons", "guides",
 ];
 
 function QRBtn() {
@@ -58,6 +58,11 @@ export function LeftSidebar() {
   const sendBackward = useEditorStore((s) => s.sendBackward);
   const updateElement = useEditorStore((s) => s.updateElement);
   const updatePage = useEditorStore((s) => s.updatePage);
+  const guides = useEditorStore((s) => s.guides);
+  const addGuide = useEditorStore((s) => s.addGuide);
+  const removeGuide = useEditorStore((s) => s.removeGuide);
+  const selectedGuideId = useEditorStore((s) => s.selectedGuideId);
+  const setSelectedGuideId = useEditorStore((s) => s.setSelectedGuideId);
   const currentPage = pages[activePageIndex];
 
   const imgInputRef = useRef<HTMLInputElement>(null);
@@ -357,6 +362,52 @@ export function LeftSidebar() {
                   </div>
                 ))}
               </div>
+            </>
+          )}
+
+          {tab === "guides" && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-foreground">Guías</h3>
+                <button onClick={() => {
+                  const pos = Math.round((currentPage?.width ?? 800) / 2);
+                  addGuide(pos, "vertical", currentPage?.id ?? "");
+                }}
+                  className="flex items-center gap-1 h-7 px-2 border border-border rounded-md bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-xs font-medium">
+                  ＋ Añadir
+                </button>
+              </div>
+              {currentPage && (
+                <>
+                  {guides.filter((g) => g.pageId === currentPage.id).length === 0 && (
+                    <div className="text-xs text-muted-foreground">Sin guías en esta página</div>
+                  )}
+                  <div className="space-y-1">
+                    {guides.filter((g) => g.pageId === currentPage.id).map((g) => {
+                      const isSelected = g.id === selectedGuideId;
+                      return (
+                        <div key={g.id}
+                          onClick={() => setSelectedGuideId(isSelected ? null : g.id)}
+                          className={`flex items-center gap-2 px-2.5 py-2 rounded cursor-pointer text-xs transition-colors
+                            ${isSelected
+                              ? "bg-accent text-foreground border border-primary"
+                              : "text-muted-foreground hover:bg-accent/50 border border-transparent"
+                            }`}
+                        >
+                          <span className="text-sm leading-none shrink-0">{g.orientation === "horizontal" ? "━" : "┃"}</span>
+                          <span className="flex-1 truncate font-mono">{g.id}</span>
+                          <span className="text-muted-foreground">{g.position}px</span>
+                          <button onClick={(e) => { e.stopPropagation(); removeGuide(g.id); }}
+                            className="text-destructive hover:text-destructive/80 text-xs border-none bg-transparent cursor-pointer p-0.5 shrink-0">✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 text-[10px] text-muted-foreground leading-relaxed">
+                    También puedes crear guías arrastrando desde las reglas, o usar <code className="text-xs text-primary">&lt;guide&gt;</code> en JSX.
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

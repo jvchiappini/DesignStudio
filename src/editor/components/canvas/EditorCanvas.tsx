@@ -3,6 +3,18 @@ import { useEditorStore } from "../../store/editorStore";
 import { renderElementContent } from "../../utils/renderElement";
 import type { ResizeHandle } from "../../utils/types";
 import { PathEditor } from "../tools/PathEditor";
+import { calculateOptimalFontSize } from "../../utils/textMeasure";
+import type { Page } from "../../utils/types";
+
+function findPageOffset(x: number, pages: Page[], pageGap: number): number {
+  let off = 0;
+  for (let pi = 0; pi < pages.length; pi++) {
+    const end = off + pages[pi].width;
+    if (x >= off && x < end) return off;
+    off += pages[pi].width + pageGap;
+  }
+  return 0;
+}
 import { GridOverlay } from "./GridOverlay";
 import { RulerOverlay } from "./RulerOverlay";
 import { GuideOverlay } from "./GuideOverlay";
@@ -342,9 +354,20 @@ export function EditorCanvas() {
         newY = Math.round(newY / gs) * gs;
       }
 
+      const movedIds: string[] = [];
+
       if (drag.handle) {
         resizeElement(drag.elementId, newW, newH);
         moveElement(drag.elementId, newX, newY);
+        movedIds.push(drag.elementId);
+        // Real-time auto-fit font size during resize for text with autoFitSize=true
+        const autoEl = useEditorStore.getState().elements.find((e) => e.id === drag.elementId);
+        if (autoEl && autoEl.type === "text" && autoEl.autoFitSize) {
+          const optimalSize = calculateOptimalFontSize(autoEl);
+          if (optimalSize !== null && Math.abs(optimalSize - (autoEl.fontSize ?? 0)) > 0.5) {
+            useEditorStore.getState().updateElement(drag.elementId, { fontSize: optimalSize });
+          }
+        }
       } else {
         const dx = newX - drag.startElX;
         const dy = newY - drag.startElY;
@@ -358,12 +381,34 @@ export function EditorCanvas() {
               return { ...e, x: orig.x + dx, y: orig.y + dy };
             }),
           }));
+          movedIds.push(...drag.multiIds);
         } else {
           moveElement(drag.elementId, newX, newY);
+          movedIds.push(drag.elementId);
+        }
+      }
+
+      // Recalculate anchor offsets for moved elements
+      const st = useEditorStore.getState();
+      for (const mid of movedIds) {
+        const me = st.elements.find((e) => e.id === mid);
+        if (!me || (!me.leftAnchor && !me.rightAnchor)) continue;
+        const pageOff = findPageOffset(me.x, st.pages, st.pageGap);
+        const offsetUpdates: Partial<import("../../utils/types").DesignElement> = {};
+        if (me.leftAnchor) {
+          const g = st.guides.find((g) => g.id === me.leftAnchor);
+          if (g) offsetUpdates.leftAnchorOffset = me.x - (g.position + pageOff);
+        }
+        if (me.rightAnchor) {
+          const g = st.guides.find((g) => g.id === me.rightAnchor);
+          if (g) offsetUpdates.rightAnchorOffset = (me.x + me.width) - (g.position + pageOff);
+        }
+        if (Object.keys(offsetUpdates).length > 0) {
+          st.updateElement(mid, offsetUpdates);
         }
       }
     },
-    [drag, zoom, isPanning, moveElement, moveElements, resizeElement],
+    [drag, zoom, isPanning, moveElement, moveElements, resizeElement, calculateOptimalFontSize],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -377,7 +422,21 @@ export function EditorCanvas() {
       return;
     }
     if (!drag) return;
-    if (drag.moved) saveSnapshot();
+    if (drag.moved && drag.handle) {
+      saveSnapshot();
+      // After resize, auto-fit font size for text elements with autoFitSize=true
+      const state = useEditorStore.getState();
+      const elementIds = drag.multiIds ?? [drag.elementId];
+      for (const eid of elementIds) {
+        const el = state.elements.find((e) => e.id === eid);
+        if (el && el.type === "text" && el.autoFitSize) {
+          const optimalSize = calculateOptimalFontSize(el);
+          if (optimalSize !== null && optimalSize !== el.fontSize) {
+            state.updateElement(eid, { fontSize: optimalSize });
+          }
+        }
+      }
+    }
     setDrag(null);
     snapGuidesRef.current = [];
   }, [drag, saveSnapshot, isPanning, rotatingId]);
@@ -520,7 +579,7 @@ export function EditorCanvas() {
           {pages.map((page, i) => {
             const isActive = i === activePageIndex;
             const isTransparent = !page.bgColor || page.bgColor === "transparent" || page.bgColor === "";
-            const pageStart = offsets[i];
+            const pageStart = pageLefts[i];
             const pageEnd = pageStart + page.width;
 
             // Elements overlapping this page (positioned relative to page)
@@ -625,10 +684,11 @@ export function EditorCanvas() {
                 data-element-id={el.id}
                 style={{
                   position: "absolute",
-                  left: el.x + gapOff,
+                  left: el.x,
                   top: el.y,
                   width: spanWidth,
                   height: el.height,
+                  zIndex: 9999,
                   pointerEvents: "auto",
                 }}
                 onPointerDown={(e) => handlePointerDown(e, el.id, null)}

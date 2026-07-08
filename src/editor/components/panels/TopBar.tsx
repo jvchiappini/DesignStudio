@@ -71,6 +71,7 @@ export function TopBar({ onExport, exporting, progress }: Props) {
   const projectName = useEditorStore((s) => s.projectName);
   const setProjectName = useEditorStore((s) => s.setProjectName);
   const loadProject = useEditorStore((s) => s.loadProject);
+  const newProject = useEditorStore((s) => s.newProject);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -353,6 +354,8 @@ export function TopBar({ onExport, exporting, progress }: Props) {
             {projectName}
           </span>
         )}
+        <button className="w-6 h-6 flex items-center justify-center border-none rounded bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-xs shrink-0"
+          onClick={newProject} title="Nuevo proyecto en blanco">📄</button>
         <button className="w-6 h-6 flex items-center justify-center border-none rounded bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-xs shrink-0"
           onClick={handleSave} title="Guardar proyecto como .jsx">💾</button>
         <button className="w-6 h-6 flex items-center justify-center border-none rounded bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-xs shrink-0"

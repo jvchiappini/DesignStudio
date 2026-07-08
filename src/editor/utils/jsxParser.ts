@@ -7,6 +7,16 @@
 
 import type { DesignElement, Page, ClipMask } from "./types";
 import { pageOffset } from "./jsxSerializer";
+import { cssBackgroundToLayers } from "./cssBackgroundParser";
+import { calculateOptimalFontSize } from "./textMeasure";
+
+export function normalizeTextLines(text: string): string {
+    return text
+        .trim()
+        .split("\n")
+        .map(l => l.trim())
+        .join("\n");
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +32,9 @@ export interface ParsedProject {
     pages: Page[];
     pageGap: number;
     guides: GuideData[];
+    /** True when the <config> block explicitly contained at least one <guide> element.
+     *  False means the JSX had NO guide declarations — existing guides should be preserved. */
+    hasGuideElements: boolean;
     config: Record<string, string>;
 }
 
@@ -93,13 +106,15 @@ function parseText(el: Element, id: string, common: Partial<DesignElement>): Des
     }
 
     const gradColors = el.getAttribute("textGradientColors");
-
-    return {
+    const autoFit = boolAttr(el, "autoFitSize", false);
+    let fontSize = numAttr(el, "fontSize", 32);
+    const base = {
         ...common,
         id,
         type: "text",
-        text: el.textContent || "",
-        fontSize: numAttr(el, "fontSize", 32),
+        text: normalizeTextLines(el.textContent || ""),
+        fontSize,
+        autoFitSize: autoFit || undefined,
         fontFamily: el.getAttribute("fontFamily") || "system-ui, sans-serif",
         fontWeight: hasAttr(el, "fontWeight") ? numAttr(el, "fontWeight", 400) : 400,
         fontStyle: (el.getAttribute("fontStyle") as "normal" | "italic") || "normal",
@@ -128,7 +143,18 @@ function parseText(el: Element, id: string, common: Partial<DesignElement>): Des
         textOutlineColor: strAttr(el, "textOutlineColor"),
         textOutlineWidth: hasAttr(el, "textOutlineWidth") ? numAttr(el, "textOutlineWidth") : undefined,
         textOverflow: strAttr(el, "textOverflow") as any,
+        leftAnchor: strAttr(el, "leftAnchor"),
+        leftAnchorOffset: hasAttr(el, "leftAnchorOffset") ? numAttr(el, "leftAnchorOffset") : undefined,
+        rightAnchor: strAttr(el, "rightAnchor"),
+        rightAnchorOffset: hasAttr(el, "rightAnchorOffset") ? numAttr(el, "rightAnchorOffset") : undefined,
     } as DesignElement;
+    if (autoFit) {
+        const autoSize = calculateOptimalFontSize(base as DesignElement);
+        if (autoSize !== null) {
+            base.fontSize = autoSize;
+        }
+    }
+    return base as DesignElement;
 }
 
 function parseImage(el: Element, id: string, common: Partial<DesignElement>): DesignElement {
@@ -202,6 +228,20 @@ export function parseJsx(
     xml: string,
 ): { ok: true; data: ParsedProject } | { ok: false; error: string } {
     try {
+        // Pre-escape angle brackets and ampersands inside svgContent='...' attribute values
+        // so that DOMParser does not choke on raw `<svg ...>` markup or `&` in the attribute.
+        xml = xml.replace(/svgContent='([^']*)'/g, (_m, content: string) => {
+            const escaped = content
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            return `svgContent='${escaped}'`;
+        });
+
+        // Escape bare `&` that are not already part of a valid XML entity.
+        // This handles cases like "CEO & Fundadora" in text content.
+        xml = xml.replace(/&(?!amp;|lt;|gt;|quot;|apos;)/g, "&amp;");
+
         const doc = new DOMParser().parseFromString(xml, "text/xml");
 
         const errEl = doc.querySelector("parsererror");
@@ -224,19 +264,23 @@ export function parseJsx(
             for (const { name, value } of Array.from(configEl.attributes)) {
                 config[name] = value;
             }
-            for (const guideEl of Array.from(configEl.querySelectorAll(":scope > guide"))) {
+            const guideNodes = Array.from(configEl.querySelectorAll(":scope > guide"));
+            for (const guideEl of guideNodes) {
                 const pos = parseFloat(guideEl.getAttribute("position") || "0");
                 const orient = guideEl.getAttribute("orientation") as "horizontal" | "vertical";
                 const pid = guideEl.getAttribute("pageId") || undefined;
+                const gid = guideEl.getAttribute("id") || `guide_${guides.length + 1}`;
                 if (orient) {
                     guides.push({
-                        id: `guide_${guides.length + 1}`,
+                        id: gid,
                         position: pos,
                         orientation: orient,
                         pageId: pid,
                     });
                 }
             }
+            // Track whether the JSX explicitly contained guide elements
+            (config as any).__hasGuideElements = guideNodes.length > 0;
         }
 
         // ── Pages ────────────────────────────────────────────────────────────────
@@ -248,6 +292,7 @@ export function parseJsx(
         const pages: Page[] = [];
         const elements: DesignElement[] = [];
         const pageGap = config.pageGap ? parseInt(config.pageGap, 10) : 0;
+        let elCounter = 1;
 
         for (let pi = 0; pi < pageNodes.length; pi++) {
             const pg = pageNodes[pi];
@@ -256,7 +301,16 @@ export function parseJsx(
             const bg = pg.getAttribute("bgColor") || "#1a1a2e";
             const pgName = pg.getAttribute("name") || `Página ${pi + 1}`;
 
-            pages.push({ id: `page_${pi + 1}`, name: pgName, width: w, height: h, bgColor: bg });
+            const page: Page = { id: `page_${pi + 1}`, name: pgName, width: w, height: h, bgColor: bg };
+
+            // Parse bgStyle into bgLayers for mesh/complex gradients
+            const bgStyle = pg.getAttribute("bgStyle");
+            if (bgStyle) {
+                const layers = cssBackgroundToLayers(bgStyle);
+                if (layers.length > 0) page.bgLayers = layers;
+            }
+
+            pages.push(page);
 
             const startX = pageOffset(pages, pi, pageGap);
 
@@ -267,7 +321,10 @@ export function parseJsx(
 
             for (const el of children) {
                 const tag = el.tagName.toLowerCase();
-                const elId = el.getAttribute("id") || `el_${elements.length + 1}`;
+                const rawId = el.getAttribute("id");
+                // Generate a unique fallback ID if none provided.
+                // Using timestamp+random to avoid collisions with existing elements.
+                const elId = rawId || `el_${Date.now()}_${elCounter++}_${Math.random().toString(36).slice(2, 6)}`;
                 const common = parseCommon(el, startX, elements.length);
 
                 let parsed: DesignElement | null = null;
@@ -286,7 +343,70 @@ export function parseJsx(
             }
         }
 
-        return { ok: true, data: { elements, pages, pageGap, guides, config } };
+        const hasGuideElements = !!(config as any).__hasGuideElements;
+        delete (config as any).__hasGuideElements;
+
+        // Translate numeric pageId on guides ("1", "2") to actual page IDs ("page_1", "page_2")
+        // so they survive store filtering regardless of loading path (TopBar or ChatPanel).
+        for (const g of guides) {
+            if (g.pageId) {
+                const numericVal = parseInt(g.pageId, 10);
+                if (!isNaN(numericVal) && String(numericVal) === g.pageId) {
+                    const idx = Math.max(0, numericVal - 1);
+                    if (pages[idx]) g.pageId = pages[idx].id;
+                }
+            }
+        }
+
+        // Calculate initial anchor offsets for elements with leftAnchor/rightAnchor
+        // (only when not explicitly provided in JSX)
+        for (const el of elements) {
+            if (!el.leftAnchor && !el.rightAnchor) continue;
+            let pageStart = 0;
+            for (let pi = 0; pi < pages.length; pi++) {
+                const ps = pageOffset(pages, pi, pageGap);
+                const pe = ps + pages[pi].width;
+                if (el.x >= ps && el.x < pe) { pageStart = ps; break; }
+            }
+            if (el.leftAnchor && el.leftAnchorOffset === undefined) {
+                const g = guides.find((gd) => gd.id === el.leftAnchor);
+                if (g) el.leftAnchorOffset = el.x - (g.position + pageStart);
+            }
+            if (el.rightAnchor && el.rightAnchorOffset === undefined) {
+                const g = guides.find((gd) => gd.id === el.rightAnchor);
+                if (g) el.rightAnchorOffset = (el.x + el.width) - (g.position + pageStart);
+            }
+        }
+
+        // Recalculate element positions from anchor + offset so the visual position
+        // always derives from the anchors, not the raw JSX attributes.
+        // This guarantees that anchor + offset = visual position is mathematically exact.
+        for (const el of elements) {
+            if (!el.leftAnchor && !el.rightAnchor) continue;
+            let pageStart = 0;
+            for (let pi = 0; pi < pages.length; pi++) {
+                const ps = pageOffset(pages, pi, pageGap);
+                const pe = ps + pages[pi].width;
+                if (el.x >= ps && el.x < pe) { pageStart = ps; break; }
+            }
+            if (el.leftAnchor && el.leftAnchorOffset !== undefined) {
+                const g = guides.find((gd) => gd.id === el.leftAnchor);
+                if (g) el.x = g.position + pageStart + el.leftAnchorOffset;
+            }
+            if (el.rightAnchor && el.rightAnchorOffset !== undefined) {
+                const g = guides.find((gd) => gd.id === el.rightAnchor);
+                if (g) {
+                    const newRight = g.position + pageStart + el.rightAnchorOffset;
+                    if (el.leftAnchor) {
+                        el.width = Math.max(10, newRight - el.x);
+                    } else {
+                        el.x = newRight - el.width;
+                    }
+                }
+            }
+        }
+
+        return { ok: true, data: { elements, pages, pageGap, guides, hasGuideElements, config } };
     } catch (e: any) {
         return { ok: false, error: e?.message || String(e) };
     }

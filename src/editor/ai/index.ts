@@ -36,6 +36,7 @@ export type { ApplyJsxResult } from "./jsxApplicator";
 
 // ── Patch engine ──────────────────────────────────────────────────────────────
 export { applyPatch } from "./patchEngine";
+export { applyPatchTool } from "./applyPatchTool";
 
 // ── Tool registry ─────────────────────────────────────────────────────────────
 export { allTools } from "./toolRegistry";

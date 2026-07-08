@@ -1,13 +1,24 @@
 import { create } from "zustand";
-import type { DesignElement, ShapeKind, SidebarTab, RightTab, Page, CropPreview, LeftPanelTab } from "../utils/types";
+import type { DesignElement, ShapeKind, SidebarTab, RightTab, Page, CropPreview, LeftPanelTab, Guide } from "../utils/types";
 
 let nextId = 1;
 let nextPageId = 1;
 function genId(): string {
-  return `el_${nextId++}_${Date.now()}`;
+  return `el_${nextId++}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 function genPageId(): string {
   return `page_${nextPageId++}_${Date.now()}`;
+}
+/** Generate a unique element ID that doesn't collide with existing elements */
+function genUniqueId(elements: DesignElement[]): string {
+  const existing = new Set(elements.map((e) => e.id));
+  let id = genId();
+  let attempts = 0;
+  while (existing.has(id) && attempts < 100) {
+    id = genId();
+    attempts++;
+  }
+  return id;
 }
 
 const STORAGE_KEY = "design-studio-project";
@@ -22,13 +33,6 @@ function loadSaved(): Partial<EditorStore> {
   }
 }
 
-interface Guide {
-  id: string;
-  position: number;
-  orientation: "horizontal" | "vertical";
-  pageId?: string; // undefined = global guide, set = per-page
-}
-
 interface HistoryEntry {
   elements: DesignElement[];
   selectedId: string | null;
@@ -39,6 +43,7 @@ interface EditorStore {
   elements: DesignElement[];
   selectedId: string | null;
   selectedIds: string[];
+  selectedGuideId: string | null;
   canvasWidth: number;
   canvasHeight: number;
   chatOpen: boolean;
@@ -91,6 +96,7 @@ interface EditorStore {
   selectElement: (id: string | null, additive?: boolean) => void;
   selectAll: () => void;
   clearSelection: () => void;
+  setSelectedGuideId: (id: string | null) => void;
   moveElement: (id: string, x: number, y: number) => void;
   moveElements: (ids: string[], dx: number, dy: number) => void;
   resizeElement: (id: string, w: number, h: number) => void;
@@ -148,10 +154,13 @@ interface EditorStore {
   setGuideMode: (mode: "global" | "page") => void;
   removeGuide: (id: string) => void;
   updateGuidePosition: (id: string, position: number) => void;
+  updateGuide: (id: string, updates: Partial<Guide>) => void;
   setShowRulers: (v: boolean) => void;
   setGridSize: (v: number) => void;
   setProjectName: (name: string) => void;
   loadProject: (data: string) => boolean;
+  newProject: () => void;
+  recalculateAnchoredPositions: () => void;
 }
 
 function getPageOffset(pages: Page[], index: number, gap: number = 0): number {
@@ -195,6 +204,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   elements: saved.elements ?? [],
   selectedId: saved.selectedId ?? null,
   selectedIds: [],
+  selectedGuideId: null,
   pages: saved.pages ?? defaultPages(),
   activePageIndex: 0,
   canvasWidth: (saved.pages ?? defaultPages())[0]?.width ?? 1080,
@@ -338,7 +348,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   addElement: (el) => {
     get().saveSnapshot();
-    set((s) => ({ elements: [...s.elements, el], selectedId: el.id, selectedIds: [el.id], rightTab: "properties" }));
+    const { elements } = get();
+    // Ensure unique ID — regenerate if it collides with an existing element
+    const existingIds = new Set(elements.map((e) => e.id));
+    const finalId = existingIds.has(el.id) ? genUniqueId(elements) : el.id;
+    const finalEl = finalId === el.id ? el : { ...el, id: finalId };
+    set((s) => ({ elements: [...s.elements, finalEl], selectedId: finalEl.id, selectedIds: [finalEl.id], rightTab: "properties" }));
     persist(get());
   },
 
@@ -351,7 +366,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     elements.forEach((e) => { if (e.groupId && gids.has(e.groupId)) toRemove.add(e.id); });
     set({
       elements: elements.filter((e) => !toRemove.has(e.id)),
-      selectedId: null, selectedIds: [], rightTab: null,
+      selectedId: null, selectedIds: [], rightTab: null, selectedGuideId: null,
     });
     persist(get());
   },
@@ -436,7 +451,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   selectElement: (id, additive = false) => {
     if (!id) {
-      set({ selectedId: null, selectedIds: [], rightTab: null, editingTextId: null });
+    set({ selectedId: null, selectedIds: [], rightTab: null, editingTextId: null, selectedGuideId: null });
       return;
     }
     const elements = get().elements;
@@ -451,7 +466,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         const newIds = allInGroup
           ? s.selectedIds.filter((sid) => !groupIds.includes(sid))
           : [...s.selectedIds.filter((sid) => !groupIds.includes(sid)), ...groupIds];
-        return { selectedId: id, selectedIds: newIds, rightTab: "properties" };
+        return { selectedId: id, selectedIds: newIds, rightTab: "properties", selectedGuideId: null };
       });
     } else {
       set({
@@ -459,6 +474,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         selectedIds: groupIds,
         rightTab: "properties",
         editingTextId: null,
+        selectedGuideId: null,
       });
     }
   },
@@ -469,7 +485,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   clearSelection: () => {
-    set({ selectedId: null, selectedIds: [], rightTab: null, editingTextId: null });
+    set({ selectedId: null, selectedIds: [], rightTab: null, editingTextId: null, selectedGuideId: null });
   },
 
   moveElement: (id, x, y) => {
@@ -636,11 +652,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const idx = sorted.findIndex((e) => e.id === id);
     if (idx < 0 || idx >= sorted.length - 1) return;
     const above = sorted[idx + 1];
-    set({ elements: elements.map((e) => {
-      if (e.id === id) return { ...e, zIndex: above.zIndex };
-      if (e.id === above.id) return { ...e, zIndex: sorted[idx].zIndex };
-      return e;
-    }) });
+    set({
+      elements: elements.map((e) => {
+        if (e.id === id) return { ...e, zIndex: above.zIndex };
+        if (e.id === above.id) return { ...e, zIndex: sorted[idx].zIndex };
+        return e;
+      })
+    });
   },
 
   sendBackward: (id) => {
@@ -650,11 +668,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const idx = sorted.findIndex((e) => e.id === id);
     if (idx <= 0) return;
     const below = sorted[idx - 1];
-    set({ elements: elements.map((e) => {
-      if (e.id === id) return { ...e, zIndex: below.zIndex };
-      if (e.id === below.id) return { ...e, zIndex: sorted[idx].zIndex };
-      return e;
-    }) });
+    set({
+      elements: elements.map((e) => {
+        if (e.id === id) return { ...e, zIndex: below.zIndex };
+        if (e.id === below.id) return { ...e, zIndex: sorted[idx].zIndex };
+        return e;
+      })
+    });
   },
 
   // pages
@@ -679,6 +699,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const newIdx = Math.min(activePageIndex, newPages.length - 1);
     const p = newPages[newIdx];
     set({ pages: newPages, activePageIndex: newIdx, canvasWidth: p.width, canvasHeight: p.height, canvasBgColor: p.bgColor, ...computeCarouselSize(newPages, pageGap) });
+    get().recalculateAnchoredPositions();
     persist(get());
   },
   setActivePage: (index) => {
@@ -698,6 +719,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       patch.canvasBgColor = active.bgColor;
     }
     set(patch);
+    if ("width" in updates) get().recalculateAnchoredPositions();
     persist(get());
   },
 
@@ -733,6 +755,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setRightTab: (tab) => set({ rightTab: tab }),
   setEditingTextId: (id) => set({ editingTextId: id }),
   setPathEditingId: (id) => set({ pathEditingId: id }),
+  setSelectedGuideId: (id) => set({
+    selectedGuideId: id,
+    selectedId: null,
+    selectedIds: [],
+    rightTab: id ? "properties" : null,
+  }),
   setCropElementId: (id) => set({ cropElementId: id }),
   setCropPreview: (preview) => set({ cropPreview: preview }),
   setChatOpen: (open) => set({ chatOpen: open }),
@@ -741,10 +769,68 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setShowGrid: (v) => set({ showGrid: v }),
   setSnapToGrid: (v) => set({ snapToGrid: v }),
   setShowRulers: (v) => set({ showRulers: v }),
-  setPageGap: (v) => set((s) => ({ pageGap: v, ...computeCarouselSize(s.pages, v) })),
+  setPageGap: (v) => {
+    set((s) => ({ pageGap: v, ...computeCarouselSize(s.pages, v) }));
+    get().recalculateAnchoredPositions();
+    persist(get());
+  },
   setGuideMode: (mode) => set({ guideMode: mode }),
   setGridSize: (v) => set({ gridSize: v }),
   setProjectName: (name) => { set({ projectName: name }); persist(get()); },
+  newProject: () => {
+    const blankPage: Page = { id: genPageId(), name: "Página 1", width: 1080, height: 1920, bgColor: "#1a1a2e" };
+    set({
+      projectName: "Sin título",
+      elements: [],
+      pages: [blankPage],
+      guides: [],
+      pageGap: 0,
+      activePageIndex: 0,
+      selectedId: null,
+      selectedIds: [],
+      selectedGuideId: null,
+      history: [],
+      historyIndex: -1,
+      canvasWidth: blankPage.width,
+      canvasHeight: blankPage.height,
+      canvasBgColor: blankPage.bgColor,
+    });
+    persist(get());
+  },
+  recalculateAnchoredPositions: () => {
+    const { elements, pages, guides, pageGap } = get();
+    const updated = elements.map((el) => {
+      if (!el.leftAnchor && !el.rightAnchor) return el;
+      const guideId = el.leftAnchor || el.rightAnchor!;
+      const guide = guides.find((g) => g.id === guideId);
+      if (!guide) return el;
+      const pageIdx = pages.findIndex((p) => p.id === guide.pageId);
+      if (pageIdx < 0) return el;
+      let pageStart = 0;
+      for (let i = 0; i < pageIdx; i++) pageStart += pages[i].width + pageGap;
+      let newX = el.x;
+      let newW = el.width;
+      if (el.leftAnchor && el.leftAnchorOffset !== undefined) {
+        const g = guides.find((gd) => gd.id === el.leftAnchor);
+        if (g) newX = g.position + pageStart + el.leftAnchorOffset;
+      }
+      if (el.rightAnchor && el.rightAnchorOffset !== undefined) {
+        const g = guides.find((gd) => gd.id === el.rightAnchor);
+        if (g) {
+          const newRight = g.position + pageStart + el.rightAnchorOffset;
+          if (el.leftAnchor) {
+            newW = Math.max(10, newRight - newX);
+          } else {
+            newX = newRight - el.width;
+          }
+        }
+      }
+      if (newX !== el.x || newW !== el.width) return { ...el, x: newX, width: newW };
+      return el;
+    });
+    set({ elements: updated });
+    persist(get());
+  },
   loadProject: (data) => {
     try {
       const parsed = JSON.parse(data);
@@ -758,6 +844,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         activePageIndex: 0,
         selectedId: null,
         selectedIds: [],
+        selectedGuideId: null,
         history: [],
         historyIndex: -1,
       });
@@ -767,13 +854,65 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return true;
     } catch { return false; }
   },
-  addGuide: (position, orientation, pageId) => set((s) => ({
-    guides: [...s.guides, { id: genId(), position, orientation, pageId }],
-  })),
-  removeGuide: (id) => set((s) => ({
-    guides: s.guides.filter((g) => g.id !== id),
-  })),
-  updateGuidePosition: (id, position) => set((s) => ({
-    guides: s.guides.map((g) => g.id === id ? { ...g, position } : g),
-  })),
+  addGuide: (position, orientation, pageId) => set((s) => {
+    const nextGuides = [...s.guides, { id: genId(), position, orientation, pageId }];
+    const nextState = { ...s, guides: nextGuides };
+    persist(nextState);
+    return { guides: nextGuides };
+  }),
+  removeGuide: (id) => set((s) => {
+    const nextGuides = s.guides.filter((g) => g.id !== id);
+    const nextElements = s.elements.map((el) => {
+      if (el.leftAnchor === id || el.rightAnchor === id) {
+        const updates: Partial<DesignElement> = {};
+        if (el.leftAnchor === id) updates.leftAnchor = undefined;
+        if (el.rightAnchor === id) updates.rightAnchor = undefined;
+        return { ...el, ...updates };
+      }
+      return el;
+    });
+    const nextState = { ...s, elements: nextElements, guides: nextGuides };
+    persist(nextState);
+    return { elements: nextElements, guides: nextGuides };
+  }),
+  updateGuidePosition: (id, position) => set((s) => {
+    const oldGuide = s.guides.find((g) => g.id === id);
+    if (!oldGuide) return s;
+    const delta = position - oldGuide.position;
+
+    const nextGuides = s.guides.map((g) => g.id === id ? { ...g, position } : g);
+
+    const nextElements = s.elements.map((el) => {
+      const hasLeft = el.leftAnchor === id;
+      const hasRight = el.rightAnchor === id;
+      if (!hasLeft && !hasRight) return el;
+      const hasOtherLeft = !!el.leftAnchor && el.leftAnchor !== id;
+      const hasOtherRight = !!el.rightAnchor && el.rightAnchor !== id;
+
+      const updates: Partial<DesignElement> = {};
+      if (hasLeft) {
+        updates.x = el.x + delta;
+        if (hasOtherRight) {
+          updates.width = Math.max(10, el.width - delta);
+        }
+      } else if (hasRight) {
+        if (hasOtherLeft) {
+          updates.width = Math.max(10, el.width + delta);
+        } else {
+          updates.x = el.x + delta;
+        }
+      }
+      return { ...el, ...updates };
+    });
+
+    const nextState = { ...s, elements: nextElements, guides: nextGuides };
+    persist(nextState);
+    return { elements: nextElements, guides: nextGuides };
+  }),
+  updateGuide: (id, updates) => set((s) => {
+    const nextGuides = s.guides.map((g) => g.id === id ? { ...g, ...updates } : g);
+    const nextState = { ...s, guides: nextGuides };
+    persist(nextState);
+    return { guides: nextGuides };
+  }),
 }));

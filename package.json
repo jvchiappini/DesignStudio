@@ -23,6 +23,8 @@
     "opentype.js": "^2.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "webm-writer": "^1.0.0",
     "zustand": "^5.0.14"
   }

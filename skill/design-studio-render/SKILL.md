@@ -210,6 +210,33 @@ Use asymmetrical padding for visual hierarchy:
 | charScaleX | number | 100 | Horizontal stretch in %. 200 = double width |
 | charScaleY | number | 100 | Vertical stretch in %. 200 = double height |
 
+### Guide Anchors (RECOMMENDED)
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| leftAnchor | string | — | ID of the vertical guide this element's left edge attaches to |
+| leftAnchorOffset | number | 0 | Offset in px from the guide to the element's left edge (positive = right of guide) |
+| rightAnchor | string | — | ID of the vertical guide this element's right edge attaches to |
+| rightAnchorOffset | number | 0 | Offset in px from the guide to the element's right edge (positive = right of guide) |
+
+When an element has anchors, its position is calculated as `guide.position + pageOffset + offset`. Moving the guide automatically moves all anchored elements. **Always use anchors for text elements** instead of raw `x` coordinates — this ensures layout consistency and makes the design responsive to page/guide changes.
+
+```jsx
+<text leftAnchor="ml-text-start" leftAnchorOffset="0"
+  rightAnchor="ml-text-end" rightAnchorOffset="0"
+  y="200" w="auto" h="60" fontSize="28" fontWeight="700" color="#ffffff">
+  Anchored text
+</text>
+```
+
+For centered elements, use symmetric offsets:
+```jsx
+<text leftAnchor="ml-center" leftAnchorOffset="-240"
+  rightAnchor="ml-center" rightAnchorOffset="240"
+  y="200" w="auto" h="60" fontSize="28" fontWeight="700" color="#ffffff">
+  Centered anchored text
+</text>
+```
+
 ---
 
 ## `<image>`
@@ -300,6 +327,87 @@ For custom SVG vector graphics:
 ```
 
 ---
+
+## `<guide>`
+
+Define alignment guides inside `<config>` for precise layout:
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string | REQUIRED | Unique identifier (use descriptive names, not page-based). Must be globally unique across all pages |
+| orientation | string | REQUIRED | "vertical" or "horizontal" |
+| position | number | REQUIRED | Position in px from the page's left (vertical) or top (horizontal) edge |
+| pageId | string | — | Page this guide belongs to. Omit for all-page guides (deprecated — always specify page-local) |
+
+```jsx
+<config pageGap="40" showGrid="false" snapToGrid="false">
+  <guide id="ml-cover-text-start" orientation="vertical" position="60" />
+  <guide id="ml-cover-text-end" orientation="vertical" position="500" />
+  <guide id="ml-cover-center" orientation="vertical" position="280" />
+  <guide id="ml-cover-top" orientation="horizontal" position="60" />
+  <guide id="ml-cover-bottom" orientation="horizontal" position="1020" />
+</config>
+```
+
+## Guides and Anchor System — Complete Reference
+
+Guides + anchors = declarative, responsive layout system. Every text element should attach to vertical guides instead of using raw `x` coordinates.
+
+### Architecture
+
+1. **Guides** are defined in `<config>` with a unique `id`, `orientation`, `position`, and `pageId`.
+2. **Anchors** on `<text>` elements (`leftAnchor`, `rightAnchor`) reference guide IDs.
+3. **Offsets** (`leftAnchorOffset`, `rightAnchorOffset`) express distance from guide to element edge.
+4. **Position is derived** at parse time: `element.x = guide.position + pageOffset + offset`.
+
+### Best Practices
+
+- **Always use anchors for text elements.** Never set raw `x` on text — always use `leftAnchor` + `leftAnchorOffset`.
+- **Use two anchors** for fixed-width elements: `leftAnchor` + `rightAnchor` with matching offsets.
+- **Use one anchor + offset** for edge-aligned elements: `leftAnchor` with positive offset moves it right from the guide.
+- **Use symmetric offsets for centering**: `leftAnchor="center-guide" leftAnchorOffset="-240" rightAnchor="center-guide" rightAnchorOffset="240"`.
+- **Guide IDs must be globally unique** across the entire project. Use descriptive prefixes like `ml-` (magazine left), `mr-` (magazine right), `cv-` (cover), `pg-` (page), etc.
+- **All guides must be page-local** (always set `pageId`). Global guides (no pageId) are deprecated.
+- **Do not create guides inside `<page>` elements.** Guides only go in `<config>`.
+
+### Naming Convention
+
+Use descriptive, globally unique guide IDs:
+
+| Prefix | Meaning | Example |
+|--------|---------|---------|
+| `ml-` | Magazine left page | `ml-text-start`, `ml-center` |
+| `mr-` | Magazine right page | `mr-text-end`, `mr-guide` |
+| `cv-` | Cover | `cv-title-center`, `cv-margin-left` |
+| `pg-` | General page | `pg-content-start`, `pg-margin-right` |
+
+### Complete Example
+
+```jsx
+<project>
+  <config pageGap="40" showGrid="false" snapToGrid="false">
+    <guide id="cv-left" orientation="vertical" position="60" />
+    <guide id="cv-right" orientation="vertical" position="1020" />
+    <guide id="cv-center" orientation="vertical" position="540" />
+    <guide id="cv-top" orientation="horizontal" position="60" />
+    <guide id="cv-bottom" orientation="horizontal" position="1020" />
+  </config>
+  <page width="1080" height="1080" bgColor="#0f0f1a">
+    <text leftAnchor="cv-left" leftAnchorOffset="0"
+      rightAnchor="cv-right" rightAnchorOffset="0"
+      y="60" w="auto" h="80" fontSize="36" fontWeight="700"
+      color="#ffffff" textAlign="center">
+      Anchored Content
+    </text>
+    <text leftAnchor="cv-center" leftAnchorOffset="-200"
+      rightAnchor="cv-center" rightAnchorOffset="200"
+      y="200" w="auto" h="60" fontSize="24" color="#a0a0b0"
+      textAlign="center">
+      Centered with symmetric offsets
+    </text>
+  </page>
+</project>
+```
 
 # Background Layers System
 
@@ -758,6 +866,8 @@ Pre-built JSX snippets for common UI elements. Each file is a pattern you compos
 - [ ] All coordinates are multiples of 20?
 - [ ] Text has 40px+ margin from page edges?
 - [ ] fontFamily is specified on every text element?
+- [ ] Anchors used on ALL text elements? (Never use raw `x` — use `leftAnchor` + `leftAnchorOffset` instead)
+- [ ] Guide IDs are globally unique?
 - [ ] fontSize is appropriate (never below 10px for text)?
 - [ ] Double quotes used on all attribute values?
 - [ ] Self-closing tags for empty elements?

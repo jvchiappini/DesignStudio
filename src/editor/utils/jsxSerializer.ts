@@ -85,7 +85,11 @@ function serializeText(el: DesignElement, rx: number): string {
         el.textShadows && el.textShadows.length > 0
             ? `'${JSON.stringify(el.textShadows)}'`
             : null;
-    const txt = (el.text ?? "").replace(/"/g, "&quot;");
+    const txt = (el.text ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     const clipStr = el.clipMask ? `${el.clipMask.type}:${el.clipMask.value}` : null;
     const elBgStyle = hasActiveLayers(el.bgLayers) ? layersToBackground(el.bgLayers) : null;
 
@@ -120,6 +124,10 @@ function serializeText(el: DesignElement, rx: number): string {
         a("textOutlineColor", el.textOutlineColor) +
         a("textOutlineWidth", el.textOutlineWidth, 0) +
         a("textOverflow", el.textOverflow, "hidden") +
+        a("leftAnchor", el.leftAnchor) +
+        a("leftAnchorOffset", el.leftAnchorOffset, 0) +
+        a("rightAnchor", el.rightAnchor) +
+        a("rightAnchorOffset", el.rightAnchorOffset, 0) +
         a("clipMask", clipStr) +
         a("bgStyle", elBgStyle) +
         `>${txt}</text>\n`
@@ -231,6 +239,7 @@ export function generateJsx(
     for (const g of store.guides) {
         out +=
             `    <guide` +
+            ca("id", g.id) +
             ca("position", g.position) +
             ca("orientation", g.orientation) +
             (g.pageId ? ca("pageId", g.pageId) : "") +

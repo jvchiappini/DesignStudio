@@ -14,6 +14,7 @@
 
 import { useEditorStore } from "../store/editorStore";
 import { parseJsx } from "../utils/jsxParser";
+import { getTextHeightFixes } from "../utils/textMeasure";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ export function applyJsxToStore(jsx: string): ApplyJsxResult {
             return { ok: false, error: result.error };
         }
 
-        const { elements, pages, pageGap, guides, config } = result.data;
+        const { elements, pages, pageGap, guides, hasGuideElements, config } = result.data;
 
         // ── Restore base64 image data ──────────────────────────────────────────────
         // The LLM uses @base64_img_<id> placeholders to avoid flooding its context
@@ -56,6 +57,27 @@ export function applyJsxToStore(jsx: string): ApplyJsxResult {
             }
         }
 
+        // Preserve existing page IDs so that any preserved guides remain attached to the correct pages
+        for (let i = 0; i < pages.length; i++) {
+            if (store.pages[i]) {
+                pages[i].id = store.pages[i].id;
+            }
+        }
+
+        // If the AI explicitly provided guides and used numeric page numbers (like "1"), 
+        // translate them to the actual preserved page IDs.
+        if (hasGuideElements) {
+            for (const g of guides) {
+                if (g.pageId) {
+                    const numericVal = parseInt(g.pageId, 10);
+                    if (!isNaN(numericVal) && String(numericVal) === g.pageId) {
+                        const idx = Math.max(0, numericVal - 1);
+                        if (pages[idx]) g.pageId = pages[idx].id;
+                    }
+                }
+            }
+        }
+
         // ── Build the state patch ──────────────────────────────────────────────────
         const firstPage = pages[0];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,7 +85,11 @@ export function applyJsxToStore(jsx: string): ApplyJsxResult {
             elements,
             pages,
             pageGap,
-            guides,
+            // Preserve existing guides when the JSX has no explicit <guide> declarations.
+            // This prevents the AI's final <project> response from wiping guides that were
+            // added via add_guide tool calls earlier in the same conversation turn.
+            // Guides are only replaced when the JSX actively includes guide elements.
+            guides: hasGuideElements ? guides : store.guides,
             activePageIndex: 0,
             selectedId: null,
             selectedIds: [],
@@ -83,6 +109,16 @@ export function applyJsxToStore(jsx: string): ApplyJsxResult {
         if (config.guideMode) statePatch.guideMode = config.guideMode;
         if (config.gridSize) statePatch.gridSize = parseInt(config.gridSize, 10);
         if (config.zoom) statePatch.zoom = parseFloat(config.zoom);
+
+        // Auto-fix text element heights to prevent clipping
+        const fixes = getTextHeightFixes(elements);
+        if (fixes.length > 0) {
+            const fixMap = new Map(fixes.map((f) => [f.id, f.height]));
+            statePatch.elements = elements.map((el) => {
+                const newH = fixMap.get(el.id);
+                return newH !== undefined ? { ...el, height: newH } : el;
+            });
+        }
 
         useEditorStore.setState(statePatch);
         return { ok: true };

@@ -67,7 +67,7 @@ Editor visual de diseño multipropósito con canvas interactivo, exportación mu
 
 ### Chat IA
 - Panel lateral resizable (drag para ajustar ancho, 200–800px)
-- **14 herramientas IA**: estado del canvas, seleccionar, eliminar, mover, redimensionar, cambiar texto, color, crear texto/formas, opacidad, imagen, duplicar, listar tools
+- **40+ herramientas IA**: estado, seleccionar, eliminar, mover, redimensionar, rotar, voltear, alinear, distribuir, agrupar, orden z, texto, color, opacidad, blend mode, sombra, borde, clip mask, lock/visibilidad, imágenes, SVG, auto-layout, guías, páginas, undo/redo, exportar, zoom, copiar/pegar estilos y más
 - Comandos por chat: `estado`, `tools`, `seleccionar [id]`, `eliminar [id]`, `mover [id] [x] [y]`
 - Arquitectura extensible para integrar LLMs reales
 

@@ -1,6 +1,6 @@
 ﻿import { useRef, useCallback, useState, useMemo, useEffect } from "react";
 import { useEditorStore } from "../../store/editorStore";
-import type { DesignElement } from "../../utils/types";
+import type { DesignElement, Guide } from "../../utils/types";
 import { useFontLoader } from "../../../hooks/useFontLoader";
 import { useTextToPaths } from "../../../hooks/useTextToPaths";
 import { svgHasPaths, svgHasTextElements, textSvgToPaths } from "../../../utils/svgTextToPaths";
@@ -8,6 +8,7 @@ import { BackgroundLayerEditor } from "../tools/BackgroundLayerEditor";
 import { LayoutEditor } from "../tools/LayoutEditor";
 import { GOOGLE_FONTS, loadGoogleFont } from "../../utils/googleFonts";
 import { optimizeImage } from "../../utils/imageOptimizer";
+import { calculateOptimalFontSize } from "../../utils/textMeasure";
 
 function NumField({ label: lbl, value, onChange, min, max, step }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number;
@@ -19,7 +20,12 @@ function NumField({ label: lbl, value, onChange, min, max, step }: {
         value={Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
         min={min} max={max} step={step ?? 1}
         className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-sans box-border"
-        onChange={(e) => onChange(Number(e.target.value))} />
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === "" || raw === "-") return;
+          const num = Number(raw);
+          if (isFinite(num)) onChange(num);
+        }} />
     </div>
   );
 }
@@ -35,6 +41,72 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function GuideProperties({ guide }: { guide: Guide }) {
+  const updateGuidePosition = useEditorStore((s) => s.updateGuidePosition);
+  const updateGuide = useEditorStore((s) => s.updateGuide);
+  const removeGuide = useEditorStore((s) => s.removeGuide);
+  const setSelectedGuideId = useEditorStore((s) => s.setSelectedGuideId);
+  const pages = useEditorStore((s) => s.pages);
+  const activePageIndex = useEditorStore((s) => s.activePageIndex);
+
+  const currentPage = pages[activePageIndex];
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-sm font-semibold text-foreground">Guía</span>
+        <div className="flex gap-1">
+          <button onClick={() => { removeGuide(guide.id); setSelectedGuideId(null); }}
+            className="bg-accent border-none rounded text-destructive hover:text-destructive/80 cursor-pointer text-sm px-2 py-1 leading-none">🗑</button>
+        </div>
+      </div>
+
+      <Section title="Identidad">
+        <div className="mb-3">
+          <div className="text-[11px] text-muted-foreground font-medium mb-1">ID</div>
+          <input type="text" value={guide.id}
+            className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+            onChange={(e) => updateGuide(guide.id, { id: e.target.value })} />
+        </div>
+      </Section>
+
+      <Section title="Posición">
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <NumField label={guide.orientation === "horizontal" ? "Y (px)" : "X (px)"}
+            value={guide.position}
+            onChange={(v) => updateGuidePosition(guide.id, v)} />
+          <div>
+            <div className="text-[11px] text-muted-foreground font-medium mb-1">Orientación</div>
+            <div className="flex gap-1">
+              <button onClick={() => updateGuide(guide.id, { orientation: "vertical" })}
+                className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${guide.orientation === "vertical" ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"}`}>
+                ┃ Vertical
+              </button>
+              <button onClick={() => updateGuide(guide.id, { orientation: "horizontal" })}
+                className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${guide.orientation === "horizontal" ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"}`}>
+                ━ Horizontal
+              </button>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Página">
+        <div className="text-xs text-muted-foreground">
+          {currentPage ? currentPage.name || currentPage.id : "—"}
+        </div>
+      </Section>
+
+      <Section title="Acciones">
+        <button onClick={() => { removeGuide(guide.id); setSelectedGuideId(null); }}
+          className="w-full px-2 py-1.5 border border-border rounded bg-destructive/10 text-destructive hover:bg-destructive/20 cursor-pointer text-xs leading-none">
+          Eliminar guía
+        </button>
+      </Section>
+    </>
+  );
+}
+
 export function RightPanel() {
   const rightTab = useEditorStore((s) => s.rightTab);
   const selectedId = useEditorStore((s) => s.selectedId);
@@ -43,20 +115,27 @@ export function RightPanel() {
   const deleteSelected = useEditorStore((s) => s.deleteSelected);
   const bringToFront = useEditorStore((s) => s.bringToFront);
   const sendToBack = useEditorStore((s) => s.sendToBack);
+  const selectedGuideId = useEditorStore((s) => s.selectedGuideId);
+  const guides = useEditorStore((s) => s.guides);
 
-  const isOpen = rightTab === "properties" && selectedId;
-  const el = isOpen ? elements.find((e) => e.id === selectedId) : null;
-
+  const isElementOpen = rightTab === "properties" && selectedId;
+  const el = isElementOpen ? elements.find((e) => e.id === selectedId) : null;
   const typeLabel = el ? (el.type === "text" ? "Texto" : el.type === "image" ? "Imagen" : el.type === "shape" ? "Forma" : "SVG") : "";
 
+  const guide = selectedGuideId ? guides.find((g) => g.id === selectedGuideId) : null;
+  const isGuideOpen = !!guide;
+
   return (
-    <div className={`absolute right-0 top-0 h-full z-50 transition-transform duration-200 ${isOpen && el ? "translate-x-0" : "translate-x-full"
-      }`}>
+    <div className={`absolute right-0 top-0 h-full z-50 transition-transform duration-200 ${
+      (isElementOpen && el) || isGuideOpen ? "translate-x-0" : "translate-x-full"
+    }`}>
       <div className="w-[280px] h-full bg-card border-l border-border overflow-y-auto p-4">
-        {/* Header */}
+        {isGuideOpen && guide && <GuideProperties guide={guide} />}
+
+        {!isGuideOpen && el && (
+          <>
         <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-semibold text-foreground">{el ? typeLabel : ""}</span>
-          {el && (
+          <span className="text-sm font-semibold text-foreground">{typeLabel}</span>
             <div className="flex gap-1">
               <button onClick={() => sendToBack(el.id)} title="Al fondo"
                 className="bg-accent border-none rounded text-muted-foreground hover:text-foreground cursor-pointer text-sm px-2 py-1 leading-none">⬇</button>
@@ -65,11 +144,8 @@ export function RightPanel() {
               <button onClick={deleteSelected} title="Eliminar"
                 className="bg-accent border-none rounded text-destructive hover:text-destructive/80 cursor-pointer text-sm px-2 py-1 leading-none">🗑</button>
             </div>
-          )}
         </div>
 
-        {el && (
-          <>
             <Section title="Posición">
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <NumField label="X" value={el.x} onChange={(v) => updateElement(el.id, { x: v })} />
@@ -198,6 +274,10 @@ function TextFields({ el, updateElement }: {
 }) {
   const { loadCustomFont, getFonts, removeFont, loadFontFromUrl } = useFontLoader();
   const { convertToSvgPaths } = useTextToPaths();
+  const allGuides = useEditorStore((s) => s.guides);
+  const pages = useEditorStore((s) => s.pages);
+  const activePageIndex = useEditorStore((s) => s.activePageIndex);
+  const pageGap = useEditorStore((s) => s.pageGap);
   const fontInputRef = useRef<HTMLInputElement>(null);
   const fontUrlRef = useRef<HTMLInputElement>(null);
   const fontPickerRef = useRef<HTMLDivElement>(null);
@@ -254,6 +334,36 @@ function TextFields({ el, updateElement }: {
     setConverting(false);
   }, [el, convertToSvgPaths]);
 
+  const handleAnchorOffsetChange = useCallback((targetEl: DesignElement, side: "leftAnchorOffset" | "rightAnchorOffset", value: number) => {
+    const guideId = side === "leftAnchorOffset" ? targetEl.leftAnchor : targetEl.rightAnchor;
+    if (!guideId) {
+      updateElement(targetEl.id, { [side]: value });
+      return;
+    }
+    const guide = allGuides.find((g) => g.id === guideId);
+    if (!guide) {
+      updateElement(targetEl.id, { [side]: value });
+      return;
+    }
+    let pageStart = 0;
+    for (let i = 0; i < activePageIndex; i++) {
+      pageStart += pages[i].width + pageGap;
+    }
+    if (side === "leftAnchorOffset") {
+      const newX = guide.position + pageStart + value;
+      updateElement(targetEl.id, { leftAnchorOffset: value, x: newX });
+    } else {
+      const newRight = guide.position + pageStart + value;
+      if (targetEl.leftAnchor && targetEl.leftAnchor !== guideId) {
+        const newWidth = Math.max(10, newRight - targetEl.x);
+        updateElement(targetEl.id, { rightAnchorOffset: value, width: newWidth });
+      } else {
+        const newX = newRight - targetEl.width;
+        updateElement(targetEl.id, { rightAnchorOffset: value, x: newX });
+      }
+    }
+  }, [allGuides, pages, activePageIndex, pageGap, updateElement]);
+
   return (
     <>
       <Section title="Contenido">
@@ -308,6 +418,87 @@ function TextFields({ el, updateElement }: {
               onChange={(e) => updateElement(el.id, { color: e.target.value })} />
           </div>
         </div>
+        <div className="flex items-center gap-2 mt-2">
+          <input type="checkbox" id="autoFitSize"
+            checked={!!el.autoFitSize}
+            onChange={(e) => {
+              const newVal = e.target.checked || undefined;
+              updateElement(el.id, { autoFitSize: newVal });
+              if (newVal) {
+                const optimal = calculateOptimalFontSize(el);
+                if (optimal !== null && optimal !== el.fontSize) {
+                  updateElement(el.id, { fontSize: optimal });
+                }
+              }
+            }}
+            className="cursor-pointer accent-primary" />
+          <label htmlFor="autoFitSize" className="text-[10px] text-muted-foreground cursor-pointer select-none">
+            Auto ajustar texto al contenedor
+          </label>
+        </div>
+      </Section>
+
+      <Section title="Anclaje a guías">
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div>
+            <div className="text-[11px] text-muted-foreground font-medium mb-1">Guía izquierda</div>
+            <input type="text" value={el.leftAnchor ?? ""}
+              placeholder="—"
+              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+              onChange={(e) => updateElement(el.id, { leftAnchor: e.target.value || undefined })} />
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground font-medium mb-1">Distancia</div>
+            <input type="text" inputMode="numeric"
+              value={String(el.leftAnchorOffset ?? 0)}
+              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "" || raw === "-") return;
+                const num = Number(raw);
+                if (isFinite(num)) handleAnchorOffsetChange(el, "leftAnchorOffset", num);
+              }} />
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground font-medium mb-1">Guía derecha</div>
+            <input type="text" value={el.rightAnchor ?? ""}
+              placeholder="—"
+              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+              onChange={(e) => updateElement(el.id, { rightAnchor: e.target.value || undefined })} />
+          </div>
+          <div>
+            <div className="text-[11px] text-muted-foreground font-medium mb-1">Distancia</div>
+            <input type="text" inputMode="numeric"
+              value={String(el.rightAnchorOffset ?? 0)}
+              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "" || raw === "-") return;
+                const num = Number(raw);
+                if (isFinite(num)) handleAnchorOffsetChange(el, "rightAnchorOffset", num);
+              }} />
+          </div>
+        </div>
+        {(() => {
+          const currentPageId = pages[activePageIndex]?.id;
+          const pageGuides = allGuides.filter((g) => !g.pageId || g.pageId === currentPageId);
+          if (pageGuides.length === 0) return null;
+          return (
+            <details className="text-[10px] text-muted-foreground">
+              <summary className="cursor-pointer hover:text-foreground">
+                Guías disponibles ({pageGuides.length})
+              </summary>
+              <div className="mt-1.5 space-y-0.5 max-h-[120px] overflow-y-auto">
+                {pageGuides.map((g) => (
+                  <div key={g.id} className="flex items-center gap-2 py-0.5">
+                    <span className="font-mono text-[10px]">{g.id}</span>
+                    <span className="text-[9px] opacity-60">{Math.round(g.position)}px {g.orientation === "vertical" ? "↕" : "↔"}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          );
+        })()}
       </Section>
 
       <Section title="Estilo">

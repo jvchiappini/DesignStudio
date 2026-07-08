@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useEditorStore } from "../../store/editorStore";
+import { calculateOptimalFontSize } from "../../utils/textMeasure";
 
 const GUIDE_COLOR = "rgba(0, 150, 255, 0.6)";
 
@@ -21,7 +22,9 @@ export function GuideOverlay({ width, height, pageId }: Props) {
   const pageGap = useEditorStore((s) => s.pageGap);
   const removeGuide = useEditorStore((s) => s.removeGuide);
   const updateGuidePosition = useEditorStore((s) => s.updateGuidePosition);
+  const setSelectedGuideId = useEditorStore((s) => s.setSelectedGuideId);
   const zoom = useEditorStore((s) => s.zoom);
+  const showRulers = useEditorStore((s) => s.showRulers);
 
   const guides = allGuides.filter((g) => !g.pageId || g.pageId === pageId);
   const w = width ?? 1080;
@@ -42,6 +45,7 @@ export function GuideOverlay({ width, height, pageId }: Props) {
   const handlePointerDown = useCallback((g: typeof guides[0], e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    setSelectedGuideId(g.id);
     const startClient = g.orientation === "horizontal" ? e.clientY : e.clientX;
     const info: GuideDragInfo = { id: g.id, orientation: g.orientation, startPos: g.position };
     setDragInfo(info);
@@ -53,6 +57,16 @@ export function GuideOverlay({ width, height, pageId }: Props) {
         : (ev.clientX - startClient) / zoom;
       const newPos = info.startPos + delta;
       updateGuidePosition(g.id, newPos);
+      // Recalculate autoFitSize for anchored text elements
+      const currentElements = useEditorStore.getState().elements;
+      for (const cel of currentElements) {
+        if (cel.autoFitSize && (cel.leftAnchor === g.id || cel.rightAnchor === g.id)) {
+          const autoSize = calculateOptimalFontSize(cel);
+          if (autoSize !== null && autoSize !== cel.fontSize) {
+            useEditorStore.getState().updateElement(cel.id, { fontSize: autoSize });
+          }
+        }
+      }
       setCurrentPos(newPos);
     };
     const onUp = () => {
@@ -62,12 +76,13 @@ export function GuideOverlay({ width, height, pageId }: Props) {
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [zoom, updateGuidePosition]);
+  }, [zoom, updateGuidePosition, setSelectedGuideId]);
 
   const hitStroke = Math.max(8, 8 / zoom);
 
   return (
-    <svg className="absolute inset-0 pointer-events-none z-[9997]" width={w} height={h}>
+    <svg className="absolute inset-0" width={w} height={h}
+      style={{ visibility: showRulers ? "visible" : "hidden" }}>
       {guides.map((g) => {
         const isDrag = dragInfo?.id === g.id;
         // Global guides (no pageId) are in global coords; offset for this page

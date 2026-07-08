@@ -14,6 +14,7 @@ export interface DesignElement {
   // text
   text?: string;
   fontSize?: number;
+  autoFitSize?: boolean;
   fontFamily?: string;
   fontWeight?: number;
   fontStyle?: "normal" | "italic";
@@ -110,6 +111,12 @@ export interface DesignElement {
   // clip / mask
   clipMask?: ClipMask;
 
+  // guide anchors
+  leftAnchor?: string;
+  leftAnchorOffset?: number;
+  rightAnchor?: string;
+  rightAnchorOffset?: number;
+
   // group
   groupId?: string;
   locked?: boolean;
@@ -148,7 +155,7 @@ export interface BackgroundLayer {
   blendMode?: string;
 }
 
-export type SidebarTab = "templates" | "elements" | "text" | "uploads" | "background" | "layers" | "pages" | "icons";
+export type SidebarTab = "templates" | "elements" | "text" | "uploads" | "background" | "layers" | "pages" | "icons" | "guides";
 export type RightTab = "properties" | "none";
 export type LeftPanelTab = "sidebar" | "chat";
 
@@ -189,6 +196,13 @@ export interface Page {
   height: number;
   bgColor: string;
   bgLayers?: BackgroundLayer[];
+}
+
+export interface Guide {
+  id: string;
+  position: number;
+  orientation: "horizontal" | "vertical";
+  pageId?: string;
 }
 
 export type ExportFormat = "png" | "jpg" | "webp" | "pdf";
