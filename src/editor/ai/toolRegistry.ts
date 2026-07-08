@@ -563,7 +563,7 @@ const applyProjectTool: AiTool = {
   handler: async (params, _ctx) => {
     const jsx = String(params.jsx ?? "");
     if (!jsx) return { success: false, message: "No project JSX provided." };
-    const result = applyJsxToStore(jsx);
+    const result = await applyJsxToStore(jsx);
     if (result.ok) {
       return { success: true, message: "Project applied successfully. The entire design has been replaced." };
     }

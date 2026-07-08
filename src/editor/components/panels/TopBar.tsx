@@ -4,7 +4,7 @@ import { CANVAS_PRESETS } from "../../utils/types";
 import type { ExportFormat } from "../../utils/types";
 import { generateJsx } from "../../utils/jsxSerializer";
 import { parseJsx } from "../../utils/jsxParser";
-import { optimizeBase64Image } from "../../utils/imageOptimizer";
+import { loadJsxIntoStore } from "../../ai/jsxApplicator";
 
 interface Props {
   onExport: (format: ExportFormat, pages?: number | number[], scale?: number) => void;
@@ -179,64 +179,18 @@ export function TopBar({ onExport, exporting, progress }: Props) {
         }
       }
 
-      // .jsx format
+      // .jsx format — use the same loader as the AI so all post-processing
+      // (auto-fit text, guide translation, config overrides) is identical.
       if (name.endsWith(".jsx")) {
-        const result = parseJsx(content);
-        if (!result.ok) {
-          setError({ title: "Failed to parse .jsx file", message: result.error + "\n\nFile: " + file.name });
-          return;
-        }
-        const { elements, pages, pageGap, guides, config } = result.data;
-
-        // Restore and optimize base64 image data
-        const currentState = useEditorStore.getState();
-        for (const el of elements) {
-          if (el.type === "image" && el.src) {
-            if (el.src.startsWith("@base64_img_")) {
-              const oldEl = currentState.elements.find((e) => e.id === el.id);
-              if (oldEl && oldEl.type === "image" && oldEl.src) {
-                el.src = oldEl.src;
-              } else {
-                console.warn(`Could not restore image data for ${el.id}`);
-              }
-            }
-
-            // Auto-compress existing raw base64 data to webp if applicable
-            if (el.src.startsWith("data:image/")) {
-              try {
-                const { dataUrl, summary } = await optimizeBase64Image(el.src);
-                console.log(`[Load optimization] ${summary}`);
-                el.src = dataUrl;
-              } catch (err) {
-                console.error("Error optimizando imagen al cargar:", err);
-              }
-            }
-          }
-        }
-
-        const first = pages[0];
-        const patch: Record<string, any> = {
+        const applyResult = await loadJsxIntoStore(content, {
+          preserveHistory: false,       // file open resets undo history
+          preservePageIds: false,       // accept pages as defined in the file
+          alwaysReplaceGuides: true,    // always apply guides from the file
           projectName: file.name.replace(/\.jsx$/i, ""),
-          elements,
-          pages,
-          pageGap,
-          guides,
-          activePageIndex: 0,
-          selectedId: null,
-          selectedIds: [],
-          history: [],
-          historyIndex: -1,
-          canvasWidth: first.width,
-          canvasHeight: first.height,
-          canvasBgColor: first.bgColor,
-        };
-        if (config.showGrid !== undefined) patch.showGrid = config.showGrid === "true";
-        if (config.snapToGrid !== undefined) patch.snapToGrid = config.snapToGrid === "true";
-        if (config.showRulers !== undefined) patch.showRulers = config.showRulers === "true";
-        if (config.guideMode) patch.guideMode = config.guideMode;
-        if (config.gridSize) patch.gridSize = parseInt(config.gridSize, 10);
-        if (config.zoom) patch.zoom = parseInt(config.zoom, 10) / 100;
-        useEditorStore.setState(patch);
+        });
+        if (!applyResult.ok) {
+          setError({ title: "Failed to parse .jsx file", message: (applyResult.error ?? "") + "\n\nFile: " + file.name });
+        }
         return;
       }
 

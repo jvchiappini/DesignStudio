@@ -277,7 +277,7 @@ export function ChatPanel() {
           applied = result.ok;
           if (!result.ok) console.error("[ChatPanel] Patch error:", result.error);
         } else {
-          const result = applyJsxToStore(extracted.content);
+          const result = await applyJsxToStore(extracted.content);
           applied = result.ok;
           if (!result.ok) console.error("[ChatPanel] JSX apply error:", result.error);
         }
