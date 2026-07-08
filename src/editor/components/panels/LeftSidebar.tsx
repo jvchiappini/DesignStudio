@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useMemo } from "react";
 import { useEditorStore } from "../../store/editorStore";
 import type { SidebarTab, ShapeKind, BackgroundLayer } from "../../utils/types";
 import { BackgroundLayerEditor } from "../tools/BackgroundLayerEditor";
@@ -63,7 +63,26 @@ export function LeftSidebar() {
   const removeGuide = useEditorStore((s) => s.removeGuide);
   const selectedGuideId = useEditorStore((s) => s.selectedGuideId);
   const setSelectedGuideId = useEditorStore((s) => s.setSelectedGuideId);
+  const pageGap = useEditorStore((s) => s.pageGap) ?? 0;
   const currentPage = pages[activePageIndex];
+
+  const [layerFilter, setLayerFilter] = useState<string>("all");
+
+  const pageLefts = useMemo(() => {
+    let acc = 0;
+    return pages.map((p) => { const st = acc; acc += p.width + pageGap; return st; });
+  }, [pages, pageGap]);
+
+  const filteredElements = useMemo(() => {
+    if (layerFilter === "all") return elements;
+    const pIndex = parseInt(layerFilter.split("_")[1]);
+    if (isNaN(pIndex) || !pages[pIndex]) return elements;
+
+    const pageStart = pageLefts[pIndex];
+    const pageEnd = pageStart + pages[pIndex].width;
+
+    return elements.filter((el) => el.x < pageEnd && el.x + el.width > pageStart);
+  }, [elements, layerFilter, pageLefts, pages]);
 
   const imgInputRef = useRef<HTMLInputElement>(null);
   const svgInputRef = useRef<HTMLInputElement>(null);
@@ -102,7 +121,7 @@ export function LeftSidebar() {
     }, [addSvg],
   );
 
-  const sorted = [...elements].sort((a, b) => b.zIndex - a.zIndex);
+  const sorted = [...filteredElements].sort((a, b) => b.zIndex - a.zIndex);
 
   return (
     <>
@@ -264,7 +283,23 @@ export function LeftSidebar() {
 
           {tab === "layers" && (
             <>
-              <h3 className="text-sm font-semibold text-foreground mb-4">Capas ({sorted.length})</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-foreground">Capas ({sorted.length})</h3>
+              </div>
+              <div className="mb-4">
+                <select
+                  value={layerFilter}
+                  onChange={(e) => setLayerFilter(e.target.value)}
+                  className="w-full bg-accent border border-border text-xs text-foreground py-1.5 px-2 rounded cursor-pointer outline-none focus:border-primary"
+                >
+                  <option value="all">Todas las páginas</option>
+                  {pages.map((p, i) => (
+                    <option key={p.id} value={`page_${i}`}>
+                      {p.name || `Página ${i + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {sorted.length === 0 && (
                 <div className="text-xs text-muted-foreground">Sin elementos</div>
               )}
