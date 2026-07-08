@@ -183,10 +183,15 @@ function nextZIndex(elements: DesignElement[]): number {
   return max + 1;
 }
 
+let _persistTimer: ReturnType<typeof setTimeout> | null = null;
 function persist(state: { elements: DesignElement[]; pages: Page[]; guides?: Guide[]; pageGap?: number; projectName?: string }) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch { /* quota exceeded, ignore */ }
+  if (_persistTimer) clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch { /* quota exceeded, ignore */ }
+    _persistTimer = null;
+  }, 800);
 }
 
 const saved = loadSaved();

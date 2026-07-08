@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect, useMemo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import React, { useRef, useCallback, useState, useEffect, useMemo, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useEditorStore } from "../../store/editorStore";
 import { renderElementContent } from "../../utils/renderElement";
 import type { ResizeHandle } from "../../utils/types";
@@ -532,7 +532,42 @@ export function EditorCanvas() {
   const carouselW = pages.length > 0
     ? offsets[offsets.length - 1] + pages[pages.length - 1].width + (pages.length - 1) * pageGap
     : 800;
-  const carouselH = pages.length > 0 ? Math.max(...pages.map((p) => p.height)) : 600;
+  // Use reduce instead of Math.max(...spread) to avoid stack overflow with many pages
+  const carouselH = useMemo(
+    () => pages.length > 0 ? pages.reduce((max, p) => Math.max(max, p.height), 0) : 600,
+    [pages]
+  );
+
+  // Track container dimensions for page virtualization
+  const [containerSize, setContainerSize] = useState({ w: 1920, h: 1080 });
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(entries => {
+      const e = entries[0];
+      if (e) setContainerSize({ w: e.contentRect.width, h: e.contentRect.height });
+    });
+    ro.observe(el);
+    setContainerSize({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, []);
+
+  // Compute visible page indices based on current pan+zoom (with 1-page margin)
+  const visiblePageIndices = useMemo(() => {
+    const margin = 1; // render 1 extra page outside viewport as buffer
+    // canvas coords of the left/right edges of the container
+    const viewLeft = (-panX) / zoom - containerSize.w / zoom * margin;
+    const viewRight = (-panX) / zoom + containerSize.w / zoom * (1 + margin);
+    const visible: number[] = [];
+    for (let i = 0; i < pages.length; i++) {
+      const left = pageLefts[i];
+      const right = left + pages[i].width;
+      if (right > viewLeft && left < viewRight) visible.push(i);
+    }
+    // Always include active page
+    if (!visible.includes(activePageIndex)) visible.push(activePageIndex);
+    return visible;
+  }, [pages, pageLefts, panX, zoom, containerSize.w, activePageIndex]);
 
   // Compute the visual x offset (gap shift) for an element at global x
   const gapShift = useCallback((x: number) => {
@@ -575,102 +610,47 @@ export function EditorCanvas() {
             height: carouselH,
           }}
         >
-          {/* Page layers with clipped elements */}
+          {/* Page layers — only render pages visible in the current viewport */}
           {pages.map((page, i) => {
+            // Skip pages outside the visible viewport (virtualization)
+            if (!visiblePageIndices.includes(i)) return null;
             const isActive = i === activePageIndex;
-            const isTransparent = !page.bgColor || page.bgColor === "transparent" || page.bgColor === "";
             const pageStart = pageLefts[i];
             const pageEnd = pageStart + page.width;
 
-            // Elements overlapping this page (positioned relative to page)
+            // Elements overlapping this page
             const overlapping = elements.filter((el) =>
               el.x < pageEnd && el.x + el.width > pageStart
             );
 
             return (
-              <div key={page.id}
-                data-page="true"
-                data-page-index={i}
-                data-active={isActive ? "true" : "false"}
-                style={{
-                  position: "absolute",
-                  left: pageLefts[i],
-                  top: 0,
-                  width: page.width,
-                  height: page.height,
-                  boxShadow: isActive
-                    ? "0 2px 20px rgba(0,0,0,0.5), 0 0 0 2px #6c5ce7"
-                    : "0 2px 12px rgba(0,0,0,0.4)",
-                  borderRadius: 4,
-                  overflow: "hidden",
-                  pointerEvents: "none",
-                }}
-              >
-                {/* Page background */}
-                <div data-page-bg="true" style={{
-                  position: "absolute", inset: 0,
-                  backgroundColor: isTransparent ? undefined : page.bgColor,
-                  ...(isTransparent ? {
-                    backgroundImage: [
-                      "linear-gradient(45deg, #1e1e2e 25%, transparent 25%)",
-                      "linear-gradient(-45deg, #1e1e2e 25%, transparent 25%)",
-                      "linear-gradient(45deg, transparent 75%, #1e1e2e 75%)",
-                      "linear-gradient(-45deg, transparent 75%, #1e1e2e 75%)",
-                    ].join(","),
-                    backgroundSize: "20px 20px",
-                    backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
-                  } : {}),
-                  ...(hasActiveLayers(page.bgLayers) ? {
-                    background: layersToBackground(page.bgLayers) + (page.bgColor && page.bgColor !== "transparent" ? `, ${page.bgColor}` : ""),
-                  } : {}),
-                }} />
-                {isActive && <GridOverlay width={page.width} height={page.height} />}
-                {isActive && <GuideOverlay width={page.width} height={page.height} pageNumber={i + 1} />}
-
-                {/* Clipped element visuals */}
-                {overlapping.map((el) => {
-                  const elPageX = el.x - pageStart;
-                  const isEditingText = editingTextId === el.id;
-                  return (
-                    <div key={el.id} style={{
-                      position: "absolute",
-                      ...renderElementContent(el).style,
-                      left: elPageX,
-                      top: el.y,
-                      ...(isEditingText ? { opacity: 0, pointerEvents: "none" } : {}),
-                      ...(el.hidden ? { opacity: 0, pointerEvents: "none" } : {}),
-                    }}>
-                      {renderElementContent(el).content}
-                    </div>
-                  );
-                })}
-
-                {/* Visual page divider (always shown at page boundary) */}
-                {i < pages.length - 1 && (
-                  <div data-page-divider="true" style={{
-                    position: "absolute",
-                    right: 0, top: 0, bottom: 0,
-                    width: 2,
-                    background: "rgba(255,255,255,0.15)",
-                    boxShadow: "1px 0 4px rgba(0,0,0,0.3)",
-                    pointerEvents: "none",
-                  }} />
-                )}
-
-                {elements.length === 0 && isActive && (
-                  <div className="absolute inset-0 flex items-center justify-center text-[rgba(255,255,255,0.2)] text-base pointer-events-none font-sans">
-                    Haz clic en Elementos o Texto para empezar
-                  </div>
-                )}
-              </div>
+              <PageVisual
+                key={page.id}
+                page={page}
+                index={i}
+                isActive={isActive}
+                pageLeft={pageLefts[i]}
+                pageStart={pageStart}
+                overlapping={overlapping}
+                editingTextId={editingTextId}
+                totalPages={pages.length}
+              />
             );
           })}
 
           <CropPreviewOverlay />
           <CropOverlay />
 
-          {/* Interaction layer (global coordinates, handles pointer events) */}
-          {elements.filter((el) => !el.hidden && !cropElementId).map((el) => {
+          {/* Interaction layer — only render elements visible in the viewport or selected */}
+          {elements.filter((el) => {
+            if (el.hidden || cropElementId) return false;
+            // Always render selected elements (so handles are always accessible)
+            if (selectedIds.includes(el.id)) return true;
+            // Filter by horizontal viewport bounds (vertical is less of an issue for carousels)
+            const viewLeft = (-panX) / zoom - containerSize.w / zoom;
+            const viewRight = (-panX) / zoom + containerSize.w / zoom * 2;
+            return el.x + el.width > viewLeft && el.x < viewRight;
+          }).map((el) => {
             const isSelected = selectedIds.includes(el.id) && !cropElementId;
             const isEditing = editingTextId === el.id;
 
@@ -823,3 +803,117 @@ export function EditorCanvas() {
     </div>
   );
 }
+
+// ─────────────────────────────────────
+// PageVisual — memoized page renderer
+// Only re-renders when THIS page's data or its overlapping elements change.
+// Fixes the double renderElementContent() call by computing once per element.
+// ─────────────────────────────────────
+interface PageVisualProps {
+  page: Page;
+  index: number;
+  isActive: boolean;
+  pageLeft: number;
+  pageStart: number;
+  overlapping: import("../../utils/types").DesignElement[];
+  editingTextId: string | null;
+  totalPages: number;
+}
+
+const PageVisual = React.memo(function PageVisual({
+  page, index, isActive, pageLeft, pageStart, overlapping, editingTextId, totalPages,
+}: PageVisualProps) {
+  const isTransparent = !page.bgColor || page.bgColor === "transparent" || page.bgColor === "";
+
+  // Compute rendered content for each element ONCE (not twice like before)
+  const renderedEls = useMemo(
+    () => overlapping.map((el) => ({ el, ...renderElementContent(el) })),
+    [overlapping]
+  );
+
+  return (
+    <div
+      data-page="true"
+      data-page-index={index}
+      data-active={isActive ? "true" : "false"}
+      style={{
+        position: "absolute",
+        left: pageLeft,
+        top: 0,
+        width: page.width,
+        height: page.height,
+        boxShadow: isActive
+          ? "0 2px 20px rgba(0,0,0,0.5), 0 0 0 2px #6c5ce7"
+          : "0 2px 12px rgba(0,0,0,0.4)",
+        borderRadius: 4,
+        overflow: "hidden",
+        pointerEvents: "none",
+      }}
+    >
+      {/* Page background */}
+      <div
+        data-page-bg="true"
+        style={{
+          position: "absolute", inset: 0,
+          backgroundColor: isTransparent ? undefined : page.bgColor,
+          ...(isTransparent ? {
+            backgroundImage: [
+              "linear-gradient(45deg, #1e1e2e 25%, transparent 25%)",
+              "linear-gradient(-45deg, #1e1e2e 25%, transparent 25%)",
+              "linear-gradient(45deg, transparent 75%, #1e1e2e 75%)",
+              "linear-gradient(-45deg, transparent 75%, #1e1e2e 75%)",
+            ].join(","),
+            backgroundSize: "20px 20px",
+            backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+          } : {}),
+          ...(hasActiveLayers(page.bgLayers) ? {
+            background: layersToBackground(page.bgLayers) + (page.bgColor && page.bgColor !== "transparent" ? `, ${page.bgColor}` : ""),
+          } : {}),
+        }}
+      />
+
+      {isActive && <GridOverlay width={page.width} height={page.height} />}
+      {isActive && <GuideOverlay width={page.width} height={page.height} pageNumber={index + 1} />}
+
+      {/* Clipped element visuals — renderElementContent called exactly once per element */}
+      {renderedEls.map(({ el, style, content }) => {
+        const isEditingText = editingTextId === el.id;
+        return (
+          <div
+            key={el.id}
+            style={{
+              ...style,
+              position: "absolute",
+              left: el.x - pageStart,
+              top: el.y,
+              ...(isEditingText ? { opacity: 0, pointerEvents: "none" } : {}),
+              ...(el.hidden ? { opacity: 0, pointerEvents: "none" } : {}),
+            }}
+          >
+            {content}
+          </div>
+        );
+      })}
+
+      {/* Visual page divider */}
+      {index < totalPages - 1 && (
+        <div
+          data-page-divider="true"
+          style={{
+            position: "absolute",
+            right: 0, top: 0, bottom: 0, width: 2,
+            background: "rgba(255,255,255,0.15)",
+            boxShadow: "1px 0 4px rgba(0,0,0,0.3)",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {overlapping.length === 0 && isActive && (
+        <div className="absolute inset-0 flex items-center justify-center text-[rgba(255,255,255,0.2)] text-base pointer-events-none font-sans">
+          Haz clic en Elementos o Texto para empezar
+        </div>
+      )}
+    </div>
+  );
+});
