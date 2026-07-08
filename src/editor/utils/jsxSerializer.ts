@@ -15,7 +15,7 @@ interface GuideData {
     id: string;
     position: number;
     orientation: "horizontal" | "vertical";
-    pageId?: string;
+    pageNumber?: number;
 }
 
 interface StoreSnapshot {
@@ -242,7 +242,7 @@ export function generateJsx(
             ca("id", g.id) +
             ca("position", g.position) +
             ca("orientation", g.orientation) +
-            (g.pageId ? ca("pageId", g.pageId) : "") +
+            (g.pageNumber ? ca("pageNumber", g.pageNumber) : "") +
             ` />\n`;
     }
     out += "  </config>\n";

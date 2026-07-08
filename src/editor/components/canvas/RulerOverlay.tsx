@@ -184,11 +184,11 @@ export function RulerOverlay({ containerRef, panOffset }: { containerRef: { curr
       const container = containerRef.current;
       if (!container) return;
       const store = useEditorStore.getState();
-      const pageId = store.guideMode === "global" ? undefined : store.pages[store.activePageIndex]?.id;
+      const pageNumber = store.guideMode === "global" ? undefined : store.activePageIndex + 1;
 
       let originLeft = 0;
       let originTop = 0;
-      if (store.guideMode === "global" || !pageId) {
+      if (store.guideMode === "global" || !pageNumber) {
         const canvasEl = container.querySelector<HTMLDivElement>('[data-canvas-root="true"]');
         if (!canvasEl) return;
         const vr = canvasEl.getBoundingClientRect();
@@ -204,10 +204,10 @@ export function RulerOverlay({ containerRef, panOffset }: { containerRef: { curr
 
       if (draggingGuide.orientation === "horizontal") {
         const pos = Math.round((e.clientY - originTop) / zoom);
-        addGuide(pos, "horizontal", pageId);
+        addGuide(pos, "horizontal", pageNumber);
       } else {
         const pos = Math.round((e.clientX - originLeft) / zoom);
-        addGuide(pos, "vertical", pageId);
+        addGuide(pos, "vertical", pageNumber);
       }
       const preview = document.getElementById("guide-drag-preview");
       if (preview) preview.remove();

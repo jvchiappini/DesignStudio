@@ -13,12 +13,23 @@
  *  • TopBar open file  →  preserveHistory:false,  preservePageIds:false, alwaysReplaceGuides:true
  *
  * For <patch> responses use applyPatch() from patchEngine.ts instead.
+ *
+ * ── Why the deferred autoFit pass? ────────────────────────────────────────────
+ * jsxParser already calls calculateOptimalFontSize() for elements with
+ * autoFitSize=true at parse time, but that call happens synchronously while
+ * Google Fonts (Inter, Poppins, etc.) may not yet be available in the browser's
+ * canvas context.  canvas.measureText() silently falls back to system-ui when
+ * the requested font isn't loaded, producing wrong measurements.  We therefore
+ * run a SECOND pass via requestAnimationFrame after setState() so that React
+ * has painted and the FontFaceSet is likely resolved.  A document.fonts.ready
+ * gate is included for robustness.
  */
 
 import { useEditorStore } from "../store/editorStore";
 import { parseJsx } from "../utils/jsxParser";
-import { getTextHeightFixes } from "../utils/textMeasure";
+import { getTextHeightFixes, calculateOptimalFontSize } from "../utils/textMeasure";
 import { optimizeBase64Image } from "../utils/imageOptimizer";
+import type { DesignElement } from "../utils/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +64,55 @@ export interface LoadJsxOptions {
      * Ignored when undefined (AI updates do not rename the project).
      */
     projectName?: string;
+}
+
+// ─── Deferred autoFit pass ────────────────────────────────────────────────────
+
+/**
+ * Schedule a post-render pass that recomputes the optimal font size for every
+ * text element that has autoFitSize=true.
+ *
+ * This runs AFTER React has painted (requestAnimationFrame) AND after all
+ * web fonts are loaded (document.fonts.ready), so canvas.measureText() uses
+ * the correct glyph metrics instead of the system-ui fallback.
+ */
+function scheduleAutoFitPass(elements: DesignElement[]): void {
+    const autoFitIds = elements
+        .filter((el) => el.type === "text" && el.autoFitSize)
+        .map((el) => el.id);
+
+    if (autoFitIds.length === 0) return;
+
+    const runPass = () => {
+        const currentElements = useEditorStore.getState().elements;
+        const updates: Array<{ id: string; fontSize: number }> = [];
+
+        for (const id of autoFitIds) {
+            const el = currentElements.find((e) => e.id === id);
+            if (!el || el.type !== "text" || !el.autoFitSize) continue;
+            const optimal = calculateOptimalFontSize(el);
+            if (optimal !== null && Math.abs(optimal - (el.fontSize ?? 0)) > 0.5) {
+                updates.push({ id, fontSize: optimal });
+            }
+        }
+
+        if (updates.length > 0) {
+            useEditorStore.setState((s) => ({
+                elements: s.elements.map((el) => {
+                    const u = updates.find((u) => u.id === el.id);
+                    return u ? { ...el, fontSize: u.fontSize } : el;
+                }),
+            }));
+        }
+    };
+
+    // Wait for fonts, then paint, then measure.
+    const schedule = () => requestAnimationFrame(runPass);
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+        document.fonts.ready.then(schedule);
+    } else {
+        schedule();
+    }
 }
 
 // ─── Core loader (single source of truth) ─────────────────────────────────────
@@ -125,19 +185,7 @@ export async function loadJsxIntoStore(
             }
         }
 
-        // ── Translate numeric page IDs in guide elements (AI mode) ─────────────────
-        // When the AI writes pageId="1" we convert it to the real UUID of page 0.
-        if (hasGuideElements) {
-            for (const g of guides) {
-                if (g.pageId) {
-                    const numericVal = parseInt(g.pageId, 10);
-                    if (!isNaN(numericVal) && String(numericVal) === g.pageId) {
-                        const idx = Math.max(0, numericVal - 1);
-                        if (pages[idx]) g.pageId = pages[idx].id;
-                    }
-                }
-            }
-        }
+        // Guide's pageNumber (which is an index) remains valid exactly as is.
 
         // ── Decide which guides go into the store ──────────────────────────────────
         // alwaysReplaceGuides=true  → file open: always use what the file provides
@@ -146,6 +194,63 @@ export async function loadJsxIntoStore(
         //   added by add_guide tool calls earlier in the same turn.
         const resolvedGuides =
             alwaysReplaceGuides || hasGuideElements ? guides : store.guides;
+
+        // ── Post-parse anchor recalculation ────────────────────────────────────────
+        // The JSX parser resolves anchor offsets from the <guide> elements it
+        // finds inside the <config> block. When the AI generates JSX without
+        // embedded <guide> declarations (because we preserve the store's guides),
+        // the parser runs with guides=[] and cannot resolve offsets. We do a second
+        // pass here using the definitive resolvedGuides.
+        //
+        // CONTRACT (same as the parser's Pass 1):
+        //   - If leftAnchorOffset is absent → it was 0 (serialiser omits defaults).
+        //   - NEVER back-calculate from el.x; the AI may write a placeholder x.
+        if (resolvedGuides.length > 0) {
+            const pageOffFn = (pageNumber: number | undefined): number => {
+                const idx = pageNumber !== undefined ? pageNumber - 1 : 0;
+                let off = 0;
+                for (let i = 0; i < idx && i < pages.length - 1; i++) {
+                    off += pages[i].width + pageGap;
+                }
+                return off;
+            };
+
+            for (const el of elements) {
+                if (!el.leftAnchor && !el.rightAnchor) continue;
+
+                // Pass A: default any still-undefined offsets to 0
+                if (el.leftAnchor && el.leftAnchorOffset === undefined) {
+                    el.leftAnchorOffset = 0;
+                }
+                if (el.rightAnchor && el.rightAnchorOffset === undefined) {
+                    el.rightAnchorOffset = 0;
+                }
+
+                // Pass B: recompute el.x from the canonical formula.
+                // This only matters when the parser couldn't resolve the guide
+                // (empty guides list); if the parser already ran Pass 2 correctly,
+                // this recalculation is idempotent.
+                if (el.leftAnchor && el.leftAnchorOffset !== undefined) {
+                    const g = resolvedGuides.find((gd) => gd.id === el.leftAnchor);
+                    if (g) {
+                        const ps = pageOffFn(g.pageNumber);
+                        el.x = g.position + ps + el.leftAnchorOffset;
+                    }
+                }
+                if (el.rightAnchor && el.rightAnchorOffset !== undefined) {
+                    const g = resolvedGuides.find((gd) => gd.id === el.rightAnchor);
+                    if (g) {
+                        const ps = pageOffFn(g.pageNumber);
+                        const newRight = g.position + ps + el.rightAnchorOffset;
+                        if (el.leftAnchor) {
+                            el.width = Math.max(10, newRight - el.x);
+                        } else {
+                            el.x = newRight - el.width;
+                        }
+                    }
+                }
+            }
+        }
 
         // ── Build state patch ──────────────────────────────────────────────────────
         const firstPage = pages[0];
@@ -175,10 +280,20 @@ export async function loadJsxIntoStore(
         // ── Apply optional <config> overrides ─────────────────────────────────────
         if (config.showGrid !== undefined) statePatch.showGrid = config.showGrid === "true";
         if (config.snapToGrid !== undefined) statePatch.snapToGrid = config.snapToGrid === "true";
-        if (config.showRulers !== undefined) statePatch.showRulers = config.showRulers === "true";
         if (config.guideMode) statePatch.guideMode = config.guideMode;
         if (config.gridSize) statePatch.gridSize = parseInt(config.gridSize, 10);
         if (config.zoom) statePatch.zoom = parseFloat(config.zoom);
+
+        // showRulers logic:
+        // • If config explicitly sets it → use that value.
+        // • If the JSX has <guide> elements, auto-enable rulers so they are visible
+        //   immediately (the AI virtually always forgets showRulers="true").
+        // • Otherwise fall through to the existing store value (no change).
+        if (config.showRulers !== undefined) {
+            statePatch.showRulers = config.showRulers === "true";
+        } else if (resolvedGuides.length > 0) {
+            statePatch.showRulers = true;
+        }
 
         // ── Auto-fix text element heights to prevent clipping ─────────────────────
         const fixes = getTextHeightFixes(elements);
@@ -191,6 +306,14 @@ export async function loadJsxIntoStore(
         }
 
         useEditorStore.setState(statePatch);
+
+        // ── Deferred autoFit pass (post-render, post-fonts) ───────────────────────
+        // jsxParser already called calculateOptimalFontSize() synchronously, but web
+        // fonts (Inter, Poppins, etc.) may not be in the canvas context yet at that
+        // point.  We schedule a second pass after React paints + fonts are ready so
+        // the measurements are accurate.
+        scheduleAutoFitPass(statePatch.elements ?? elements);
+
         return { ok: true };
     } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);

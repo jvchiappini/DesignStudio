@@ -15,7 +15,7 @@ export function buildAiContext(
     addPage: () => void;
     removePage: (id: string) => void;
     setActivePage: (index: number) => void;
-    addGuide: (position: number, orientation: "horizontal" | "vertical", pageId?: string) => void;
+    addGuide: (position: number, orientation: "horizontal" | "vertical", pageNumber?: number) => void;
     removeGuide: (id: string) => void;
     updateGuidePosition: (id: string, position: number) => void;
     rotateElement: (id: string, angle: number) => void;
@@ -145,6 +145,9 @@ export function buildAiContext(
       const s = useEditorStore.getState();
       const page = s.pages[s.activePageIndex];
       return page ?? { id: "", name: "Default", width: 1080, height: 1920, bgColor: "#1a1a2e" };
+    },
+    get activePageIndex() {
+      return useEditorStore.getState().activePageIndex;
     },
     getElementsSummary: () =>
       useEditorStore.getState().elements.map((el) => ({

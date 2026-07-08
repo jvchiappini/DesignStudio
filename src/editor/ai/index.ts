@@ -31,8 +31,8 @@ export { extractDsResponse, buildProjectContext } from "./responseParser";
 export type { ExtractedDsResponse, DsResponseType } from "./responseParser";
 
 // ── JSX application ───────────────────────────────────────────────────────────
-export { applyJsxToStore } from "./jsxApplicator";
-export type { ApplyJsxResult } from "./jsxApplicator";
+export { applyJsxToStore, loadJsxIntoStore } from "./jsxApplicator";
+export type { ApplyJsxResult, LoadJsxOptions } from "./jsxApplicator";
 
 // ── Patch engine ──────────────────────────────────────────────────────────────
 export { applyPatch } from "./patchEngine";

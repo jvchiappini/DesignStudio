@@ -126,25 +126,24 @@ export function RightPanel() {
   const isGuideOpen = !!guide;
 
   return (
-    <div className={`absolute right-0 top-0 h-full z-50 transition-transform duration-200 ${
-      (isElementOpen && el) || isGuideOpen ? "translate-x-0" : "translate-x-full"
-    }`}>
+    <div className={`absolute right-0 top-0 h-full z-50 transition-transform duration-200 ${(isElementOpen && el) || isGuideOpen ? "translate-x-0" : "translate-x-full"
+      }`}>
       <div className="w-[280px] h-full bg-card border-l border-border overflow-y-auto p-4">
         {isGuideOpen && guide && <GuideProperties guide={guide} />}
 
         {!isGuideOpen && el && (
           <>
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-semibold text-foreground">{typeLabel}</span>
-            <div className="flex gap-1">
-              <button onClick={() => sendToBack(el.id)} title="Al fondo"
-                className="bg-accent border-none rounded text-muted-foreground hover:text-foreground cursor-pointer text-sm px-2 py-1 leading-none">⬇</button>
-              <button onClick={() => bringToFront(el.id)} title="Al frente"
-                className="bg-accent border-none rounded text-muted-foreground hover:text-foreground cursor-pointer text-sm px-2 py-1 leading-none">⬆</button>
-              <button onClick={deleteSelected} title="Eliminar"
-                className="bg-accent border-none rounded text-destructive hover:text-destructive/80 cursor-pointer text-sm px-2 py-1 leading-none">🗑</button>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-semibold text-foreground">{typeLabel}</span>
+              <div className="flex gap-1">
+                <button onClick={() => sendToBack(el.id)} title="Al fondo"
+                  className="bg-accent border-none rounded text-muted-foreground hover:text-foreground cursor-pointer text-sm px-2 py-1 leading-none">⬇</button>
+                <button onClick={() => bringToFront(el.id)} title="Al frente"
+                  className="bg-accent border-none rounded text-muted-foreground hover:text-foreground cursor-pointer text-sm px-2 py-1 leading-none">⬆</button>
+                <button onClick={deleteSelected} title="Eliminar"
+                  className="bg-accent border-none rounded text-destructive hover:text-destructive/80 cursor-pointer text-sm px-2 py-1 leading-none">🗑</button>
+              </div>
             </div>
-        </div>
 
             <Section title="Posición">
               <div className="grid grid-cols-2 gap-2 mb-3">
@@ -480,8 +479,7 @@ function TextFields({ el, updateElement }: {
           </div>
         </div>
         {(() => {
-          const currentPageId = pages[activePageIndex]?.id;
-          const pageGuides = allGuides.filter((g) => !g.pageId || g.pageId === currentPageId);
+          const pageGuides = allGuides.filter((g) => !g.pageNumber || g.pageNumber === activePageIndex + 1);
           if (pageGuides.length === 0) return null;
           return (
             <details className="text-[10px] text-muted-foreground">

@@ -13,10 +13,10 @@ interface GuideDragInfo {
 interface Props {
   width?: number;
   height?: number;
-  pageId?: string;
+  pageNumber: number;  // 1-based index 1, 2, 3...
 }
 
-export function GuideOverlay({ width, height, pageId }: Props) {
+export function GuideOverlay({ width, height, pageNumber }: Props) {
   const allGuides = useEditorStore((s) => s.guides);
   const pages = useEditorStore((s) => s.pages);
   const pageGap = useEditorStore((s) => s.pageGap);
@@ -26,17 +26,16 @@ export function GuideOverlay({ width, height, pageId }: Props) {
   const zoom = useEditorStore((s) => s.zoom);
   const showRulers = useEditorStore((s) => s.showRulers);
 
-  const guides = allGuides.filter((g) => !g.pageId || g.pageId === pageId);
+  const guides = allGuides.filter((g) => !g.pageNumber || g.pageNumber === pageNumber);
   const w = width ?? 1080;
   const h = height ?? 1920;
 
   // Compute this page's offset in global canvas space
   const pageOffset = (() => {
-    if (!pageId) return 0;
-    const idx = pages.findIndex((p) => p.id === pageId);
-    if (idx < 0) return 0;
     let off = 0;
-    for (let i = 0; i < idx; i++) off += pages[i].width + pageGap;
+    for (let i = 0; i < pageNumber - 1; i++) {
+      if (pages[i]) off += pages[i].width + pageGap;
+    }
     return off;
   })();
   const [dragInfo, setDragInfo] = useState<GuideDragInfo | null>(null);
@@ -85,8 +84,8 @@ export function GuideOverlay({ width, height, pageId }: Props) {
       style={{ visibility: showRulers ? "visible" : "hidden" }}>
       {guides.map((g) => {
         const isDrag = dragInfo?.id === g.id;
-        // Global guides (no pageId) are in global coords; offset for this page
-        const pos = g.pageId ? g.position : g.position - pageOffset;
+        // Global guides (no pageNumber) are in global coords; offset for this page
+        const pos = g.pageNumber ? g.position : g.position - pageOffset;
         const isVisible = pos >= -10 && pos <= w + 10;
         if (!isVisible) return null;
         if (g.orientation === "horizontal") {

@@ -371,7 +371,7 @@ export function LeftSidebar() {
                 <h3 className="text-sm font-semibold text-foreground">Guías</h3>
                 <button onClick={() => {
                   const pos = Math.round((currentPage?.width ?? 800) / 2);
-                  addGuide(pos, "vertical", currentPage?.id ?? "");
+                  addGuide(pos, "vertical", activePageIndex + 1);
                 }}
                   className="flex items-center gap-1 h-7 px-2 border border-border rounded-md bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-xs font-medium">
                   ＋ Añadir
@@ -379,11 +379,11 @@ export function LeftSidebar() {
               </div>
               {currentPage && (
                 <>
-                  {guides.filter((g) => g.pageId === currentPage.id).length === 0 && (
+                  {guides.filter((g) => g.pageNumber === activePageIndex + 1).length === 0 && (
                     <div className="text-xs text-muted-foreground">Sin guías en esta página</div>
                   )}
                   <div className="space-y-1">
-                    {guides.filter((g) => g.pageId === currentPage.id).map((g) => {
+                    {guides.filter((g) => g.pageNumber === activePageIndex + 1).map((g) => {
                       const isSelected = g.id === selectedGuideId;
                       return (
                         <div key={g.id}

@@ -575,7 +575,7 @@ const applyProjectTool: AiTool = {
 
 const listGuidesTool: AiTool = {
   name: "list_guides",
-  description: "List all guides currently defined in the project. Returns each guide's ID, orientation (horizontal/vertical), position (px from top or left of page), and optional pageId scope.",
+  description: "List all guides currently defined in the project. Returns each guide's ID, orientation (horizontal/vertical), position (px from top or left of page), and optional pageNumber scope.",
   parameters: {
     type: "object",
     properties: {
@@ -593,7 +593,7 @@ const listGuidesTool: AiTool = {
       : ctx.guides.filter((g) => g.orientation === filter);
     if (guides.length === 0) return { success: true, message: "No hay guías definidas.", data: { guides: [] } };
     const summary = guides.map((g) =>
-      `${g.id}: ${g.orientation} en ${g.position}px${g.pageId ? ` (página ${g.pageId})` : " (global)"}`,
+      `${g.id}: ${g.orientation} en ${g.position}px${g.pageNumber ? ` (página ${g.pageNumber})` : " (global)"}`,
     ).join("\n");
     return { success: true, message: `${guides.length} guía(s) encontrada(s):\n${summary}`, data: { guides } };
   },
@@ -616,13 +616,9 @@ const addGuideTool: AiTool = {
         type: "number",
         description: "Position in px from top (horizontal) or left (vertical) of the page.",
       },
-      pageIndex: {
+      pageNumber: {
         type: "number",
         description: "The 1-based page number to add the guide to. Will default to the active page if omitted.",
-      },
-      pageId: {
-        type: "string",
-        description: "Alternatively, the exact page ID. It is recommended to use pageIndex instead.",
       },
     },
     required: ["orientation", "position"],
@@ -630,27 +626,16 @@ const addGuideTool: AiTool = {
   handler: async (params, ctx) => {
     const orientation = String(params.orientation ?? "vertical") as "horizontal" | "vertical";
     const position = Number(params.position ?? 0);
-    let pageId = ctx.activePage.id;
-    if (params.pageIndex !== undefined) {
-      const idx = Math.max(0, Number(params.pageIndex) - 1);
-      if (ctx.pages[idx]) pageId = ctx.pages[idx].id;
-    } else if (params.pageId) {
-      const pidStr = String(params.pageId);
-      // If AI passed "1", "2" instead of actual ID, try to resolve it
-      const numericVal = parseInt(pidStr, 10);
-      if (!isNaN(numericVal) && String(numericVal) === pidStr) {
-        const idx = Math.max(0, numericVal - 1);
-        if (ctx.pages[idx]) pageId = ctx.pages[idx].id;
-      } else {
-        pageId = pidStr;
-      }
+    let pageNumber = ctx.activePageIndex + 1;
+    if (params.pageNumber !== undefined) {
+      pageNumber = Math.max(1, Number(params.pageNumber));
     }
 
-    ctx.addGuide(position, orientation, pageId);
+    ctx.addGuide(position, orientation, pageNumber);
     return {
       success: true,
-      message: `Guía ${orientation} añadida localmente en el lienzo en ${position}px y vinculada a la página ${pageId}.`,
-      data: { orientation, position, pageId },
+      message: `Guía ${orientation} añadida localmente en el lienzo en ${position}px y vinculada a la página ${pageNumber}.`,
+      data: { orientation, position, pageNumber },
     };
   },
 };

@@ -24,7 +24,7 @@ interface GuideData {
     id: string;
     position: number;
     orientation: "horizontal" | "vertical";
-    pageId?: string;
+    pageNumber?: number;
 }
 
 export interface ParsedProject {
@@ -268,14 +268,31 @@ export function parseJsx(
             for (const guideEl of guideNodes) {
                 const pos = parseFloat(guideEl.getAttribute("position") || "0");
                 const orient = guideEl.getAttribute("orientation") as "horizontal" | "vertical";
-                const pid = guideEl.getAttribute("pageId") || undefined;
+                const pNumStr = guideEl.getAttribute("pageNumber");
+                const pIdStr = guideEl.getAttribute("pageId");
+
+                let pageNumber: number | undefined = undefined;
+                if (pNumStr) {
+                    pageNumber = parseInt(pNumStr, 10);
+                } else if (pIdStr) {
+                    if (pIdStr.startsWith("page_")) {
+                        pageNumber = parseInt(pIdStr.split("_")[1], 10);
+                    } else {
+                        pageNumber = parseInt(pIdStr, 10);
+                    }
+                }
+
+                if (pageNumber !== undefined && isNaN(pageNumber)) {
+                    pageNumber = undefined;
+                }
+
                 const gid = guideEl.getAttribute("id") || `guide_${guides.length + 1}`;
                 if (orient) {
                     guides.push({
                         id: gid,
                         position: pos,
                         orientation: orient,
-                        pageId: pid,
+                        pageNumber,
                     });
                 }
             }
@@ -346,57 +363,51 @@ export function parseJsx(
         const hasGuideElements = !!(config as any).__hasGuideElements;
         delete (config as any).__hasGuideElements;
 
-        // Translate numeric pageId on guides ("1", "2") to actual page IDs ("page_1", "page_2")
-        // so they survive store filtering regardless of loading path (TopBar or ChatPanel).
-        for (const g of guides) {
-            if (g.pageId) {
-                const numericVal = parseInt(g.pageId, 10);
-                if (!isNaN(numericVal) && String(numericVal) === g.pageId) {
-                    const idx = Math.max(0, numericVal - 1);
-                    if (pages[idx]) g.pageId = pages[idx].id;
-                }
+        // ── Anchor offset resolution ─────────────────────────────────────────
+        // Helper: resolve canvas-global page start from a guide's pageNumber.
+        // Using guide.pageNumber is the authoritative method; inferring from el.x
+        // is unreliable because the AI may write a placeholder x (e.g. x="0")
+        // knowing the anchor will override it.
+        const guidePageStart = (g: GuideData): number => {
+            const pageIdx = g.pageNumber !== undefined ? g.pageNumber - 1 : 0;
+            let off = 0;
+            for (let i = 0; i < pageIdx && i < pages.length - 1; i++) {
+                off += pages[i].width + pageGap;
             }
-        }
+            return off;
+        };
 
-        // Calculate initial anchor offsets for elements with leftAnchor/rightAnchor
-        // (only when not explicitly provided in JSX)
+        // Pass 1 — Fill in missing offset values.
+        // CONTRACT: when leftAnchorOffset is absent from the JSX the serialiser
+        // omitted it because it was 0 (0 is the default). So we default to 0 here.
+        // We NEVER back-calculate from el.x because el.x may be a placeholder.
         for (const el of elements) {
             if (!el.leftAnchor && !el.rightAnchor) continue;
-            let pageStart = 0;
-            for (let pi = 0; pi < pages.length; pi++) {
-                const ps = pageOffset(pages, pi, pageGap);
-                const pe = ps + pages[pi].width;
-                if (el.x >= ps && el.x < pe) { pageStart = ps; break; }
-            }
             if (el.leftAnchor && el.leftAnchorOffset === undefined) {
-                const g = guides.find((gd) => gd.id === el.leftAnchor);
-                if (g) el.leftAnchorOffset = el.x - (g.position + pageStart);
+                el.leftAnchorOffset = 0;
             }
             if (el.rightAnchor && el.rightAnchorOffset === undefined) {
-                const g = guides.find((gd) => gd.id === el.rightAnchor);
-                if (g) el.rightAnchorOffset = (el.x + el.width) - (g.position + pageStart);
+                el.rightAnchorOffset = 0;
             }
         }
 
-        // Recalculate element positions from anchor + offset so the visual position
-        // always derives from the anchors, not the raw JSX attributes.
-        // This guarantees that anchor + offset = visual position is mathematically exact.
+        // Pass 2 — Recompute el.x (and el.width when both anchors are set) from
+        // the authoritative formula: position = guide.position + pageStart + offset.
+        // This overrides whatever placeholder x the AI wrote in the JSX.
         for (const el of elements) {
             if (!el.leftAnchor && !el.rightAnchor) continue;
-            let pageStart = 0;
-            for (let pi = 0; pi < pages.length; pi++) {
-                const ps = pageOffset(pages, pi, pageGap);
-                const pe = ps + pages[pi].width;
-                if (el.x >= ps && el.x < pe) { pageStart = ps; break; }
-            }
             if (el.leftAnchor && el.leftAnchorOffset !== undefined) {
                 const g = guides.find((gd) => gd.id === el.leftAnchor);
-                if (g) el.x = g.position + pageStart + el.leftAnchorOffset;
+                if (g) {
+                    const ps = guidePageStart(g);
+                    el.x = g.position + ps + el.leftAnchorOffset;
+                }
             }
             if (el.rightAnchor && el.rightAnchorOffset !== undefined) {
                 const g = guides.find((gd) => gd.id === el.rightAnchor);
                 if (g) {
-                    const newRight = g.position + pageStart + el.rightAnchorOffset;
+                    const ps = guidePageStart(g);
+                    const newRight = g.position + ps + el.rightAnchorOffset;
                     if (el.leftAnchor) {
                         el.width = Math.max(10, newRight - el.x);
                     } else {

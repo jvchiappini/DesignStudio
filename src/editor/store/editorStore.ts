@@ -149,7 +149,7 @@ interface EditorStore {
 
   // guides
   guides: Guide[];
-  addGuide: (position: number, orientation: "horizontal" | "vertical", pageId?: string) => void;
+  addGuide: (position: number, orientation: "horizontal" | "vertical", pageNumber?: number) => void;
   guideMode: "global" | "page";
   setGuideMode: (mode: "global" | "page") => void;
   removeGuide: (id: string) => void;
@@ -451,7 +451,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   selectElement: (id, additive = false) => {
     if (!id) {
-    set({ selectedId: null, selectedIds: [], rightTab: null, editingTextId: null, selectedGuideId: null });
+      set({ selectedId: null, selectedIds: [], rightTab: null, editingTextId: null, selectedGuideId: null });
       return;
     }
     const elements = get().elements;
@@ -801,15 +801,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { elements, pages, guides, pageGap } = get();
     const updated = elements.map((el) => {
       if (!el.leftAnchor && !el.rightAnchor) return el;
+
       const guideId = el.leftAnchor || el.rightAnchor!;
       const guide = guides.find((g) => g.id === guideId);
       if (!guide) return el;
-      const pageIdx = pages.findIndex((p) => p.id === guide.pageId);
-      if (pageIdx < 0) return el;
+
+      // Fallback to page index 0 for global guides
+      const pageIdx = guide.pageNumber ? guide.pageNumber - 1 : 0;
+      if (pageIdx < 0 || pageIdx >= pages.length) return el;
+
       let pageStart = 0;
       for (let i = 0; i < pageIdx; i++) pageStart += pages[i].width + pageGap;
+
       let newX = el.x;
       let newW = el.width;
+
       if (el.leftAnchor && el.leftAnchorOffset !== undefined) {
         const g = guides.find((gd) => gd.id === el.leftAnchor);
         if (g) newX = g.position + pageStart + el.leftAnchorOffset;
@@ -854,8 +860,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return true;
     } catch { return false; }
   },
-  addGuide: (position, orientation, pageId) => set((s) => {
-    const nextGuides = [...s.guides, { id: genId(), position, orientation, pageId }];
+  addGuide: (position, orientation, pageNumber) => set((s) => {
+    const nextGuides = [...s.guides, { id: genId(), position, orientation, pageNumber }];
     const nextState = { ...s, guides: nextGuides };
     persist(nextState);
     return { guides: nextGuides };

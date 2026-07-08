@@ -202,7 +202,7 @@ export interface Guide {
   id: string;
   position: number;
   orientation: "horizontal" | "vertical";
-  pageId?: string;
+  pageNumber?: number;
 }
 
 export type ExportFormat = "png" | "jpg" | "webp" | "pdf";

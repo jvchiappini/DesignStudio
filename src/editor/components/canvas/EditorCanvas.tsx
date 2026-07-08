@@ -625,7 +625,7 @@ export function EditorCanvas() {
                   } : {}),
                 }} />
                 {isActive && <GridOverlay width={page.width} height={page.height} />}
-                {isActive && <GuideOverlay width={page.width} height={page.height} pageId={page.id} />}
+                {isActive && <GuideOverlay width={page.width} height={page.height} pageNumber={i + 1} />}
 
                 {/* Clipped element visuals */}
                 {overlapping.map((el) => {

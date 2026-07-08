@@ -4,7 +4,7 @@ export interface AiGuide {
   id: string;
   position: number;
   orientation: "horizontal" | "vertical";
-  pageId?: string;
+  pageNumber?: number;
 }
 
 export interface AiTool {
@@ -79,6 +79,8 @@ export interface AiContext {
   canvasSize: { width: number; height: number };
   /** Get current page info */
   activePage: { id: string; name: string; width: number; height: number; bgColor: string };
+  /** Get active page index */
+  activePageIndex: number;
   /** Get available elements summary with richer data */
   getElementsSummary: () => Array<{
     id: string; type: string;
@@ -95,8 +97,8 @@ export interface AiContext {
   elementCount: number;
   /** All guides in the project */
   guides: AiGuide[];
-  /** Add a guide to the active page (or global if no pageId) */
-  addGuide: (position: number, orientation: "horizontal" | "vertical", pageId?: string) => void;
+  /** Add a guide to the active page (or global if no pageNumber) */
+  addGuide: (position: number, orientation: "horizontal" | "vertical", pageNumber?: number) => void;
   /** Remove a guide by ID */
   removeGuide: (id: string) => void;
   /** Move a guide to a new position */
