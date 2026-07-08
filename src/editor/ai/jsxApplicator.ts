@@ -311,6 +311,7 @@ export async function loadJsxIntoStore(
         }
 
         useEditorStore.setState(statePatch);
+        useEditorStore.getState().forcePersist();
 
         // ── Deferred autoFit pass (post-render, post-fonts) ───────────────────────
         // jsxParser already called calculateOptimalFontSize() synchronously, but web

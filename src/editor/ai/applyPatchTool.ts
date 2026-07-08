@@ -470,6 +470,9 @@ export function applyPatch(xml: string): PatchResult {
   const errors = operations.filter((o) => o.status === "error");
   const warnings = operations.filter((o) => o.status === "warn");
 
+  // Force persist all batch state changes made by <patch> 
+  useEditorStore.getState().forcePersist();
+
   let summaryMessage = `Patch: ${operations.length} operation(s). `;
   const okCount = operations.filter((o) => o.status === "ok").length;
   const errCount = errors.length;

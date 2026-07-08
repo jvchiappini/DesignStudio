@@ -161,6 +161,7 @@ interface EditorStore {
   loadProject: (data: string) => boolean;
   newProject: () => void;
   recalculateAnchoredPositions: () => void;
+  forcePersist: () => void;
 }
 
 function getPageOffset(pages: Page[], index: number, gap: number = 0): number {
@@ -926,4 +927,5 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     persist(nextState);
     return { guides: nextGuides };
   }),
+  forcePersist: () => persist(get()),
 }));
