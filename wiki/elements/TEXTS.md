@@ -130,6 +130,16 @@ interface DesignElement {
   // === Desbordamiento ===
   textOverflow?: "hidden" | "visible" | "ellipsis" | "clip"; // default "hidden"
 
+  // === Guide anchors ===
+  leftAnchor?: string;
+  leftAnchorOffset?: number;
+  rightAnchor?: string;
+  rightAnchorOffset?: number;
+  topAnchor?: string;
+  topAnchorOffset?: number;
+  bottomAnchor?: string;
+  bottomAnchorOffset?: number;
+
   // === Sombra (compartida con otros tipos) ===
   shadowColor?: string;
   shadowBlur?: number;
@@ -701,7 +711,7 @@ Al exportar un proyecto a `.jsx`, los textos se serializan como:
 - El contenido textual escapa `"` como `&quot;`
 - Las propiedades de espaciado, decoración, sombra, stroke, degradado, escala, etc. se exportan solo si tienen valor
 
-Propiedades exportables: `fontSize`, `fontFamily`, `fontWeight`, `fontStyle`, `color`, `textAlign`, `letterSpacing`, `lineHeight`, `textDecoration`, `textTransform`, `textIndent`, `wordSpacing`, `fontVariant`, `verticalAlign`, `charScaleX`, `charScaleY`, `opacity`, `rotation`, `textStrokeColor`, `textStrokeWidth`, `textBgColor`, `textGradient`, `shadowColor`, `shadowBlur`, `shadowOffsetX`, `shadowOffsetY`, `bgStyle`, `textPaddingLeft`, `textPaddingRight`, `textPaddingTop`, `textPaddingBottom`, `textOutlineColor`, `textOutlineWidth`, `textShadows`, `textOverflow`.
+Propiedades exportables: `fontSize`, `fontFamily`, `fontWeight`, `fontStyle`, `color`, `textAlign`, `letterSpacing`, `lineHeight`, `textDecoration`, `textTransform`, `textIndent`, `wordSpacing`, `fontVariant`, `verticalAlign`, `charScaleX`, `charScaleY`, `opacity`, `rotation`, `textStrokeColor`, `textStrokeWidth`, `textBgColor`, `textGradient`, `shadowColor`, `shadowBlur`, `shadowOffsetX`, `shadowOffsetY`, `bgStyle`, `textPaddingLeft`, `textPaddingRight`, `textPaddingTop`, `textPaddingBottom`, `textOutlineColor`, `textOutlineWidth`, `textShadows`, `textOverflow`, `leftAnchor`, `leftAnchorOffset`, `rightAnchor`, `rightAnchorOffset`, `topAnchor`, `topAnchorOffset`, `bottomAnchor`, `bottomAnchorOffset`.
 
 ---
 
@@ -946,6 +956,37 @@ Todas las propiedades de texto se persisten automáticamente en `localStorage` m
   textPaddingLeft="20" textPaddingRight="20"
   textShadows='[{"color":"#6c5ce7","blur":30,"offsetX":0,"offsetY":0},{"color":"#000000","blur":8,"offsetX":3,"offsetY":3}]'>
   TÍTULO CINEMATOGRÁFICO
+</text>
+```
+
+### Guide Anchors (topAnchor / bottomAnchor)
+
+El sistema de anchors se ha extendido al eje vertical. Ahora los textos pueden anclarse tanto horizontal como verticalmente usando guías.
+
+| Atributo | Tipo | Default | Descripción |
+|----------|------|---------|-------------|
+| `leftAnchor` | string | — | ID de guía **vertical** para el borde izquierdo |
+| `leftAnchorOffset` | number | 0 | Distancia desde la guía al borde izquierdo |
+| `rightAnchor` | string | — | ID de guía **vertical** para el borde derecho |
+| `rightAnchorOffset` | number | 0 | Distancia desde la guía al borde derecho |
+| `topAnchor` | string | — | ID de guía **horizontal** para el borde superior |
+| `topAnchorOffset` | number | 0 | Distancia desde la guía al borde superior |
+| `bottomAnchor` | string | — | ID de guía **horizontal** para el borde inferior |
+| `bottomAnchorOffset` | number | 0 | Distancia desde la guía al borde inferior |
+
+**Comportamiento:**
+- `leftAnchor` + `rightAnchor` → definen `x` y `width` automáticamente
+- `topAnchor` + `bottomAnchor` → definen `y` y `height` automáticamente
+- Al mover una guía, todos los elementos anclados a ella se actualizan manteniendo su offset
+- Al arrastrar un elemento anclado en el canvas, los offsets se recalculan en tiempo real
+- Si se elimina una guía, los anchors que la referencian se limpian automáticamente
+
+**Ejemplo JSX con los 4 anchors:**
+```jsx
+<text leftAnchor="p1-margen-izq" rightAnchor="p1-margen-der"
+  topAnchor="p1-titulo-top" bottomAnchor="p1-titulo-bottom"
+  autoFitSize="true" fontWeight="800" color="#ffffff">
+  Título anclado en los 4 lados
 </text>
 ```
 

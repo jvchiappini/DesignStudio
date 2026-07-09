@@ -30,6 +30,7 @@ import { parseJsx } from "../utils/jsxParser";
 import { getTextHeightFixes, calculateOptimalFontSize } from "../utils/textMeasure";
 import { optimizeBase64Image } from "../utils/imageOptimizer";
 import type { DesignElement } from "../utils/types";
+import { AnchorService } from "../../core/services/AnchorService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,58 +203,17 @@ export async function loadJsxIntoStore(
         // the parser runs with guides=[] and cannot resolve offsets. We do a second
         // pass here using the definitive resolvedGuides.
         //
-        // CONTRACT (same as the parser's Pass 1):
-        //   - If leftAnchorOffset is absent → it was 0 (serialiser omits defaults).
-        //   - NEVER back-calculate from el.x; the AI may write a placeholder x.
+        // Delegated to AnchorService so all 5 consumers share the same algorithm.
         if (resolvedGuides.length > 0) {
             // In AI mode (preserveHistory=true) always use the store's pageGap
             // for anchor math. Both store and JSX default to 40, but an explicit
             // mismatch (e.g. user had a custom gap) must not corrupt page offsets.
             // For file-open (preserveHistory=false) we trust the JSX value as-is.
             const effectivePageGap = preserveHistory ? store.pageGap : pageGap;
-            const pageOffFn = (pageNumber: number | undefined): number => {
-                const idx = pageNumber !== undefined ? pageNumber - 1 : 0;
-                let off = 0;
-                for (let i = 0; i < idx && i < pages.length - 1; i++) {
-                    off += pages[i].width + effectivePageGap;
-                }
-                return off;
-            };
-
+            const anchorSvc = new AnchorService(resolvedGuides, pages, effectivePageGap);
             for (const el of elements) {
-                if (!el.leftAnchor && !el.rightAnchor) continue;
-
-                // Pass A: default any still-undefined offsets to 0
-                if (el.leftAnchor && el.leftAnchorOffset === undefined) {
-                    el.leftAnchorOffset = 0;
-                }
-                if (el.rightAnchor && el.rightAnchorOffset === undefined) {
-                    el.rightAnchorOffset = 0;
-                }
-
-                // Pass B: recompute el.x from the canonical formula.
-                // This only matters when the parser couldn't resolve the guide
-                // (empty guides list); if the parser already ran Pass 2 correctly,
-                // this recalculation is idempotent.
-                if (el.leftAnchor && el.leftAnchorOffset !== undefined) {
-                    const g = resolvedGuides.find((gd) => gd.id === el.leftAnchor);
-                    if (g) {
-                        const ps = pageOffFn(g.pageNumber);
-                        el.x = g.position + ps + el.leftAnchorOffset;
-                    }
-                }
-                if (el.rightAnchor && el.rightAnchorOffset !== undefined) {
-                    const g = resolvedGuides.find((gd) => gd.id === el.rightAnchor);
-                    if (g) {
-                        const ps = pageOffFn(g.pageNumber);
-                        const newRight = g.position + ps + el.rightAnchorOffset;
-                        if (el.leftAnchor) {
-                            el.width = Math.max(10, newRight - el.x);
-                        } else {
-                            el.x = newRight - el.width;
-                        }
-                    }
-                }
+                anchorSvc.defaultOffsets(el);
+                anchorSvc.resolveElement(el);
             }
         }
 
@@ -312,6 +272,9 @@ export async function loadJsxIntoStore(
 
         useEditorStore.setState(statePatch);
         useEditorStore.getState().forcePersist();
+
+        // ── Ensure anchors are consistent ───────────────────────────────────────────
+        useEditorStore.getState().recalculateAnchoredPositions?.();
 
         // ── Deferred autoFit pass (post-render, post-fonts) ───────────────────────
         // jsxParser already called calculateOptimalFontSize() synchronously, but web

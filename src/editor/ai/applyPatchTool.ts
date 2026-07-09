@@ -19,6 +19,7 @@ import { useEditorStore } from "../store/editorStore";
 import { cssBackgroundToLayers } from "../utils/cssBackgroundParser";
 import { parseJsx, normalizeTextLines } from "../utils/jsxParser";
 import { getRequiredTextHeight } from "../utils/textMeasure";
+import { getAllNumericAttrs, getAllBooleanAttrs, getEnumValues, validateAttr as validateBehaviorAttr } from "../../core/behaviors/BehaviorRegistry";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,43 +39,12 @@ interface PatchResult {
 }
 
 // ─── Known attribute schemas ──────────────────────────────────────────────────
+// Element-level attributes are defined in each Behavior's attrSchema.
+// Aggregates are fetched from BehaviorRegistry. Config/page-level attrs
+// that aren't tied to an element type are defined here.
+const PAGE_NUMERIC_ATTRS = new Set(["pageGap", "gridSize", "gap", "padding"]);
+const PAGE_BOOLEAN_ATTRS = new Set(["showGrid", "snapToGrid", "showRulers"]);
 
-const NUMERIC_ATTRS = new Set([
-  "x", "y", "w", "width", "h", "height",
-  "rotation", "opacity", "zIndex",
-  "shadowBlur", "shadowOffsetX", "shadowOffsetY",
-  "fontSize", "fontWeight",
-  "letterSpacing", "lineHeight", "wordSpacing", "textIndent",
-  "charScaleX", "charScaleY",
-  "textStrokeWidth",
-  "textPaddingLeft", "textPaddingRight", "textPaddingTop", "textPaddingBottom",
-  "textOutlineWidth",
-  "imgBrightness", "imgContrast", "imgSaturation", "imgBlur",
-  "cropX", "cropY", "cropW", "cropH",
-  "borderWidth", "borderRadius",
-  "borderRadiusTL", "borderRadiusTR", "borderRadiusBR", "borderRadiusBL",
-  "gap", "padding",
-]);
-
-const BOOLEAN_ATTRS = new Set([
-  "hidden", "locked", "flipH", "flipV", "wrap",
-  "showGrid", "snapToGrid", "showRulers",
-]);
-
-const KNOWN_TEXT_ALIGNS = new Set(["left", "center", "right"]);
-const KNOWN_VERTICAL_ALIGNS = new Set(["top", "middle", "bottom"]);
-const KNOWN_BORDER_STYLES = new Set(["solid", "dashed", "dotted"]);
-const KNOWN_BLEND_MODES = new Set([
-  "normal", "multiply", "screen", "overlay",
-  "darken", "lighten", "color-dodge", "color-burn",
-  "hard-light", "soft-light", "difference", "exclusion",
-]);
-const KNOWN_SHAPE_KINDS = new Set(["rect", "circle", "triangle", "star", "line"]);
-const KNOWN_FONT_STYLES = new Set(["normal", "italic"]);
-const KNOWN_FONT_VARIANTS = new Set(["normal", "small-caps"]);
-const KNOWN_TEXT_DECORATIONS = new Set(["none", "underline", "line-through"]);
-const KNOWN_TEXT_TRANSFORMS = new Set(["none", "uppercase", "lowercase", "capitalize"]);
-const KNOWN_TEXT_OVERFLOWS = new Set(["visible", "hidden", "clip", "ellipsis"]);
 const KNOWN_LAYOUT_DIRECTIONS = new Set(["row", "column"]);
 const KNOWN_ALIGN_VALUES = new Set(["flex-start", "center", "flex-end", "stretch"]);
 const KNOWN_JUSTIFY_VALUES = new Set(["flex-start", "center", "flex-end", "space-between", "space-around"]);
@@ -82,72 +52,66 @@ const KNOWN_JUSTIFY_VALUES = new Set(["flex-start", "center", "flex-end", "space
 /** Validate a single attribute value and return a parsed value or error */
 function validateAttr(
   key: string, val: string, tagName: string,
+  elementType?: string | null,
 ): { valid: true; value: any } | { valid: false; error: string } {
-  // Empty string check
-  if (val === "" && NUMERIC_ATTRS.has(key)) {
-    return { valid: false, error: `attribute "${key}" in <${tagName}> has empty value` };
+  // ── Element-level attrs (delegated to BehaviorRegistry) ──────────────────
+  if (elementType) {
+    const result = validateBehaviorAttr(elementType as any, key, val, tagName);
+    if (!result.valid) return result;
+    // Numeric validation passed — skip remaining checks
+    if (typeof result.value === "number") return result;
+    // Boolean validation passed
+    if (typeof result.value === "boolean") return result;
+  } else {
+    // When no element type context, check against all aggregated schemas
+    const allNumeric = getAllNumericAttrs();
+    const allBoolean = getAllBooleanAttrs();
+
+    if (val === "" && allNumeric.has(key)) {
+      return { valid: false, error: `attribute "${key}" in <${tagName}> has empty value` };
+    }
+
+    if (allNumeric.has(key)) {
+      const n = parseFloat(val);
+      if (isNaN(n)) return { valid: false, error: `attribute "${key}"="${val}" in <${tagName}> is not a valid number` };
+      if (key === "opacity" && (n < 0 || n > 1)) return { valid: false, error: `opacity must be between 0 and 1, got ${n}` };
+      if ((key === "w" || key === "width" || key === "h" || key === "height" || key === "fontSize") && n <= 0) {
+        return { valid: false, error: `"${key}" must be > 0, got ${n}` };
+      }
+      return { valid: true, value: n };
+    }
+
+    if (allBoolean.has(key)) {
+      if (val !== "true" && val !== "false") {
+        return { valid: false, error: `attribute "${key}"="${val}" in <${tagName}> must be "true" or "false"` };
+      }
+      return { valid: true, value: val === "true" };
+    }
+
+    // Enum validation from all behaviors
+    const enumVals = getEnumValues(key);
+    if (enumVals) {
+      if (!enumVals.has(val)) {
+        return { valid: false, error: `"${key}" must be one of: ${[...enumVals].join(", ")}, got "${val}"` };
+      }
+      return { valid: true, value: val };
+    }
   }
 
-  // Numeric
-  if (NUMERIC_ATTRS.has(key)) {
+  // ── Config/page-level attrs ──────────────────────────────────────────────
+  if (PAGE_NUMERIC_ATTRS.has(key)) {
     const n = parseFloat(val);
     if (isNaN(n)) return { valid: false, error: `attribute "${key}"="${val}" in <${tagName}> is not a valid number` };
-    if (key === "opacity" && (n < 0 || n > 1)) return { valid: false, error: `opacity must be between 0 and 1, got ${n}` };
-    if ((key === "w" || key === "width" || key === "h" || key === "height" || key === "fontSize") && n <= 0) {
-      return { valid: false, error: `"${key}" must be > 0, got ${n}` };
-    }
     return { valid: true, value: n };
   }
-
-  // Boolean
-  if (BOOLEAN_ATTRS.has(key)) {
+  if (PAGE_BOOLEAN_ATTRS.has(key)) {
     if (val !== "true" && val !== "false") {
       return { valid: false, error: `attribute "${key}"="${val}" in <${tagName}> must be "true" or "false"` };
     }
     return { valid: true, value: val === "true" };
   }
 
-  // Enums
-  if (key === "textAlign") {
-    if (!KNOWN_TEXT_ALIGNS.has(val)) return { valid: false, error: `textAlign must be one of: ${[...KNOWN_TEXT_ALIGNS].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "verticalAlign") {
-    if (!KNOWN_VERTICAL_ALIGNS.has(val)) return { valid: false, error: `verticalAlign must be one of: ${[...KNOWN_VERTICAL_ALIGNS].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "borderStyle") {
-    if (!KNOWN_BORDER_STYLES.has(val)) return { valid: false, error: `borderStyle must be one of: ${[...KNOWN_BORDER_STYLES].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "mixBlendMode" || key === "blendMode") {
-    if (!KNOWN_BLEND_MODES.has(val)) return { valid: false, error: `blend mode must be one of: ${[...KNOWN_BLEND_MODES].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "shapeKind") {
-    if (!KNOWN_SHAPE_KINDS.has(val)) return { valid: false, error: `shapeKind must be one of: ${[...KNOWN_SHAPE_KINDS].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "fontStyle") {
-    if (!KNOWN_FONT_STYLES.has(val)) return { valid: false, error: `fontStyle must be one of: ${[...KNOWN_FONT_STYLES].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "fontVariant") {
-    if (!KNOWN_FONT_VARIANTS.has(val)) return { valid: false, error: `fontVariant must be one of: ${[...KNOWN_FONT_VARIANTS].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "textDecoration") {
-    if (!KNOWN_TEXT_DECORATIONS.has(val)) return { valid: false, error: `textDecoration must be one of: ${[...KNOWN_TEXT_DECORATIONS].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "textTransform") {
-    if (!KNOWN_TEXT_TRANSFORMS.has(val)) return { valid: false, error: `textTransform must be one of: ${[...KNOWN_TEXT_TRANSFORMS].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
-  if (key === "textOverflow") {
-    if (!KNOWN_TEXT_OVERFLOWS.has(val)) return { valid: false, error: `textOverflow must be one of: ${[...KNOWN_TEXT_OVERFLOWS].join(", ")}, got "${val}"` };
-    return { valid: true, value: val };
-  }
+  // ── Layout enums ─────────────────────────────────────────────────────────
   if (key === "direction") {
     if (!KNOWN_LAYOUT_DIRECTIONS.has(val)) return { valid: false, error: `layout direction must be one of: ${[...KNOWN_LAYOUT_DIRECTIONS].join(", ")}, got "${val}"` };
     return { valid: true, value: val };
@@ -161,7 +125,7 @@ function validateAttr(
     return { valid: true, value: val };
   }
 
-  // Special JSON/parse values
+  // ── Special JSON/parse values ────────────────────────────────────────────
   if (key === "textShadows") {
     try { return { valid: true, value: JSON.parse(val) }; }
     catch { return { valid: false, error: `textShadows is not valid JSON: "${val.slice(0, 80)}"` }; }
@@ -171,7 +135,7 @@ function validateAttr(
     catch { return { valid: false, error: `bgLayers is not valid JSON: "${val.slice(0, 80)}"` }; }
   }
   if (key.endsWith("Colors") && val) {
-    return { valid: true, value: val.split(",").map((s) => s.trim()) };
+    return { valid: true, value: val.split(",").map((s: string) => s.trim()) };
   }
   if (key === "clipMask" && val) {
     const idx = val.indexOf(":");
@@ -180,17 +144,6 @@ function validateAttr(
   }
   if (key === "bgStyle") {
     return { valid: true, value: val };
-  }
-
-  // For known type attributes, validate color format roughly (starts with #, rgba, or named)
-  if (key === "color" || key === "backgroundColor" || key === "borderColor"
-    || key === "shadowColor" || key === "textBgColor" || key === "textOutlineColor"
-    || key === "textStrokeColor" || key.endsWith("Color") || key.endsWith("Color1") || key.endsWith("Color2")) {
-    if (!val.startsWith("#") && !val.startsWith("rgba") && !val.startsWith("rgb(")
-      && !val.startsWith("hsla") && !val.startsWith("hsl(")
-      && val !== "transparent" && val !== "none") {
-      // Don't block — just warn via the return value
-    }
   }
 
   // Default: pass through as string
@@ -418,7 +371,10 @@ export function applyPatch(xml: string): PatchResult {
         // Normalize w/h to width/height
         const resolvedKey = key === "w" ? "width" : key === "h" ? "height" : key;
 
-        const result = validateAttr(resolvedKey, val, tag);
+        // Use existing element's type for schema-based validation
+        const elementType = existing.type;
+
+        const result = validateAttr(resolvedKey, val, tag, elementType);
         if (!result.valid) {
           operations.push({ tag, id, status: "error", message: result.error, snippet });
           attrErrors++;

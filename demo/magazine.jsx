@@ -1,49 +1,49 @@
 <project>
   <config pageGap="60" showGrid="false" snapToGrid="false" showRulers="true" guideMode="page" gridSize="20">
     <!-- ═══ PAGE 1 — COVER ═══ -->
-    <guide id="ml-cover" position="120" orientation="vertical" pageId="1" />
-    <guide id="c1r-cover" position="1200" orientation="vertical" pageId="1" />
-    <guide id="c2l-cover" position="1280" orientation="vertical" pageId="1" />
-    <guide id="mr-cover" position="2360" orientation="vertical" pageId="1" />
-    <guide position="400" orientation="horizontal" pageId="1" />
-    <guide position="1790" orientation="horizontal" pageId="1" />
-    <guide position="2480" orientation="horizontal" pageId="1" />
+    <guide id="ml-cover" position="120" orientation="vertical" pageNumber="1" />
+    <guide id="c1r-cover" position="1200" orientation="vertical" pageNumber="1" />
+    <guide id="c2l-cover" position="1280" orientation="vertical" pageNumber="1" />
+    <guide id="mr-cover" position="2360" orientation="vertical" pageNumber="1" />
+    <guide position="400" orientation="horizontal" pageNumber="1" />
+    <guide position="1790" orientation="horizontal" pageNumber="1" />
+    <guide position="2480" orientation="horizontal" pageNumber="1" />
 
     <!-- ═══ PAGE 2 — TABLE OF CONTENTS ═══ -->
-    <guide id="ml-indice" position="120" orientation="vertical" pageId="2" />
-    <guide id="c1r-indice" position="1200" orientation="vertical" pageId="2" />
-    <guide id="c2l-indice" position="1280" orientation="vertical" pageId="2" />
-    <guide id="mr-indice" position="2360" orientation="vertical" pageId="2" />
-    <guide position="500" orientation="horizontal" pageId="2" />
-    <guide position="1350" orientation="horizontal" pageId="2" />
+    <guide id="ml-indice" position="120" orientation="vertical" pageNumber="2" />
+    <guide id="c1r-indice" position="1200" orientation="vertical" pageNumber="2" />
+    <guide id="c2l-indice" position="1280" orientation="vertical" pageNumber="2" />
+    <guide id="mr-indice" position="2360" orientation="vertical" pageNumber="2" />
+    <guide position="500" orientation="horizontal" pageNumber="2" />
+    <guide position="1350" orientation="horizontal" pageNumber="2" />
 
     <!-- ═══ PAGE 3 — MAIN ARTICLE ═══ -->
-    <guide id="ml-articulo" position="120" orientation="vertical" pageId="3" />
-    <guide id="c1r-articulo" position="1200" orientation="vertical" pageId="3" />
-    <guide id="c2l-articulo" position="1280" orientation="vertical" pageId="3" />
-    <guide id="mr-articulo" position="2360" orientation="vertical" pageId="3" />
-    <guide position="160" orientation="horizontal" pageId="3" />
-    <guide position="620" orientation="horizontal" pageId="3" />
-    <guide position="1700" orientation="horizontal" pageId="3" />
+    <guide id="ml-articulo" position="120" orientation="vertical" pageNumber="3" />
+    <guide id="c1r-articulo" position="1200" orientation="vertical" pageNumber="3" />
+    <guide id="c2l-articulo" position="1280" orientation="vertical" pageNumber="3" />
+    <guide id="mr-articulo" position="2360" orientation="vertical" pageNumber="3" />
+    <guide position="160" orientation="horizontal" pageNumber="3" />
+    <guide position="620" orientation="horizontal" pageNumber="3" />
+    <guide position="1700" orientation="horizontal" pageNumber="3" />
 
     <!-- ═══ PAGE 4 — INTERVIEW ═══ -->
-    <guide id="ml-entrevista" position="120" orientation="vertical" pageId="4" />
-    <guide id="c1r-entrevista" position="1200" orientation="vertical" pageId="4" />
-    <guide id="c2l-entrevista" position="1280" orientation="vertical" pageId="4" />
-    <guide id="mr-entrevista" position="2360" orientation="vertical" pageId="4" />
-    <guide position="160" orientation="horizontal" pageId="4" />
-    <guide position="640" orientation="horizontal" pageId="4" />
-    <guide position="900" orientation="horizontal" pageId="4" />
+    <guide id="ml-entrevista" position="120" orientation="vertical" pageNumber="4" />
+    <guide id="c1r-entrevista" position="1200" orientation="vertical" pageNumber="4" />
+    <guide id="c2l-entrevista" position="1280" orientation="vertical" pageNumber="4" />
+    <guide id="mr-entrevista" position="2360" orientation="vertical" pageNumber="4" />
+    <guide position="160" orientation="horizontal" pageNumber="4" />
+    <guide position="640" orientation="horizontal" pageNumber="4" />
+    <guide position="900" orientation="horizontal" pageNumber="4" />
 
     <!-- ═══ PAGE 5 — COLOPHON ═══ -->
-    <guide id="ml-colofon" position="120" orientation="vertical" pageId="5" />
-    <guide id="c1r-colofon" position="760" orientation="vertical" pageId="5" />
-    <guide id="c2l-colofon" position="880" orientation="vertical" pageId="5" />
-    <guide id="c2r-colofon" position="1520" orientation="vertical" pageId="5" />
-    <guide id="c3l-colofon" position="1640" orientation="vertical" pageId="5" />
-    <guide id="mr-colofon" position="2360" orientation="vertical" pageId="5" />
-    <guide position="400" orientation="horizontal" pageId="5" />
-    <guide position="1300" orientation="horizontal" pageId="5" />
+    <guide id="ml-colofon" position="120" orientation="vertical" pageNumber="5" />
+    <guide id="c1r-colofon" position="760" orientation="vertical" pageNumber="5" />
+    <guide id="c2l-colofon" position="880" orientation="vertical" pageNumber="5" />
+    <guide id="c2r-colofon" position="1520" orientation="vertical" pageNumber="5" />
+    <guide id="c3l-colofon" position="1640" orientation="vertical" pageNumber="5" />
+    <guide id="mr-colofon" position="2360" orientation="vertical" pageNumber="5" />
+    <guide position="400" orientation="horizontal" pageNumber="5" />
+    <guide position="1300" orientation="horizontal" pageNumber="5" />
   </config>
 
   <!-- ═══ PAGE 1 — COVER (A4 2480x3508) ═══ -->

@@ -116,6 +116,10 @@ export interface DesignElement {
   leftAnchorOffset?: number;
   rightAnchor?: string;
   rightAnchorOffset?: number;
+  topAnchor?: string;
+  topAnchorOffset?: number;
+  bottomAnchor?: string;
+  bottomAnchorOffset?: number;
 
   // group
   groupId?: string;

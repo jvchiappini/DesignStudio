@@ -5,6 +5,7 @@ import type { ResizeHandle } from "../../utils/types";
 import { PathEditor } from "../tools/PathEditor";
 import { calculateOptimalFontSize } from "../../utils/textMeasure";
 import type { Page } from "../../utils/types";
+import { AnchorService } from "../../../core/services/AnchorService";
 
 function findPageOffset(x: number, pages: Page[], pageGap: number): number {
   let off = 0;
@@ -59,7 +60,7 @@ export function EditorCanvas() {
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [rotatingId, setRotatingId] = useState<string | null>(null);
-  const rotationRef = useRef({ startAngle: 0, elCenterX: 0, elCenterY: 0 });
+  const rotationRef = useRef<{ startAngle: number; elCenterX: number; elCenterY: number; hasRotated?: boolean }>({ startAngle: 0, elCenterX: 0, elCenterY: 0, hasRotated: false });
 
   const panX = useEditorStore((s) => s.panX);
   const panY = useEditorStore((s) => s.panY);
@@ -171,6 +172,7 @@ export function EditorCanvas() {
         startAngle: Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI),
         elCenterX: cx,
         elCenterY: cy,
+        hasRotated: false,
       };
       setRotatingId(elId);
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -242,15 +244,20 @@ export function EditorCanvas() {
       }
 
       if (rotatingId) {
-        const { startAngle, elCenterX, elCenterY } = rotationRef.current;
+        const refs = rotationRef.current as any;
+        const { startAngle, elCenterX, elCenterY, hasRotated } = refs;
         const angle = Math.atan2(e.clientY - elCenterY, e.clientX - elCenterX) * (180 / Math.PI);
         const delta = angle - startAngle;
+        if (!hasRotated && Math.abs(delta) > 0.5) {
+          useEditorStore.getState().saveSnapshot();
+          refs.hasRotated = true;
+        }
         const el = useEditorStore.getState().elements.find((el) => el.id === rotatingId);
         if (el) {
           const newRotation = ((el.rotation + delta) % 360 + 360) % 360;
           rotateElement(rotatingId, newRotation);
         }
-        rotationRef.current = { startAngle: angle, elCenterX, elCenterY };
+        rotationRef.current = { startAngle: angle, elCenterX, elCenterY, hasRotated: refs.hasRotated };
         return;
       }
 
@@ -258,6 +265,7 @@ export function EditorCanvas() {
       let dx = (e.clientX - drag.startX) / zoom;
       let dy = (e.clientY - drag.startY) / zoom;
       if (Math.abs(e.clientX - drag.startX) > 2 || Math.abs(e.clientY - drag.startY) > 2) {
+        if (!drag.moved) useEditorStore.getState().saveSnapshot();
         (drag as typeof drag & { moved: boolean }).moved = true;
       }
 
@@ -388,21 +396,14 @@ export function EditorCanvas() {
         }
       }
 
-      // Recalculate anchor offsets for moved elements
+      // Recalculate anchor offsets for moved elements — delegated to AnchorService
       const st = useEditorStore.getState();
+      const anchorSvc = new AnchorService(st.guides, st.pages, st.pageGap);
       for (const mid of movedIds) {
         const me = st.elements.find((e) => e.id === mid);
-        if (!me || (!me.leftAnchor && !me.rightAnchor)) continue;
-        const pageOff = findPageOffset(me.x, st.pages, st.pageGap);
-        const offsetUpdates: Partial<import("../../utils/types").DesignElement> = {};
-        if (me.leftAnchor) {
-          const g = st.guides.find((g) => g.id === me.leftAnchor);
-          if (g) offsetUpdates.leftAnchorOffset = me.x - (g.position + pageOff);
-        }
-        if (me.rightAnchor) {
-          const g = st.guides.find((g) => g.id === me.rightAnchor);
-          if (g) offsetUpdates.rightAnchorOffset = (me.x + me.width) - (g.position + pageOff);
-        }
+        if (!me || (!me.leftAnchor && !me.rightAnchor && !me.topAnchor && !me.bottomAnchor)) continue;
+        const actualPageOff = findPageOffset(me.x, st.pages, st.pageGap);
+        const offsetUpdates = anchorSvc.offsetOnDrag(me, actualPageOff);
         if (Object.keys(offsetUpdates).length > 0) {
           st.updateElement(mid, offsetUpdates);
         }
@@ -418,28 +419,28 @@ export function EditorCanvas() {
     }
     if (rotatingId) {
       setRotatingId(null);
-      saveSnapshot();
       return;
     }
     if (!drag) return;
-    if (drag.moved && drag.handle) {
-      saveSnapshot();
-      // After resize, auto-fit font size for text elements with autoFitSize=true
-      const state = useEditorStore.getState();
-      const elementIds = drag.multiIds ?? [drag.elementId];
-      for (const eid of elementIds) {
-        const el = state.elements.find((e) => e.id === eid);
-        if (el && el.type === "text" && el.autoFitSize) {
-          const optimalSize = calculateOptimalFontSize(el);
-          if (optimalSize !== null && optimalSize !== el.fontSize) {
-            state.updateElement(eid, { fontSize: optimalSize });
+    if (drag.moved) {
+      if (drag.handle) {
+        // After resize, auto-fit font size for text elements with autoFitSize=true
+        const state = useEditorStore.getState();
+        const elementIds = drag.multiIds ?? [drag.elementId];
+        for (const eid of elementIds) {
+          const el = state.elements.find((e) => e.id === eid);
+          if (el && el.type === "text" && el.autoFitSize) {
+            const optimalSize = calculateOptimalFontSize(el);
+            if (optimalSize !== null && optimalSize !== el.fontSize) {
+              state.updateElement(eid, { fontSize: optimalSize });
+            }
           }
         }
       }
     }
     setDrag(null);
     snapGuidesRef.current = [];
-  }, [drag, saveSnapshot, isPanning, rotatingId]);
+  }, [drag, isPanning, rotatingId]);
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent, elId: string) => {
@@ -554,29 +555,30 @@ export function EditorCanvas() {
 
   // Compute visible page indices based on current pan+zoom (with 1-page margin)
   const visiblePageIndices = useMemo(() => {
-    const margin = 1; // render 1 extra page outside viewport as buffer
+    const margin = 1; // render 1 extra container width outside viewport as buffer
     // canvas coords of the left/right edges of the container
-    const viewLeft = (-panX) / zoom - containerSize.w / zoom * margin;
-    const viewRight = (-panX) / zoom + containerSize.w / zoom * (1 + margin);
+    // accounting for transform: translate(-50%, -50%) translate(panX, panY) scale(zoom)
+    const viewLeft = carouselW / 2 - (containerSize.w / 2 + panX) / zoom - containerSize.w / zoom * margin;
+    const viewRight = carouselW / 2 + (containerSize.w / 2 - panX) / zoom + containerSize.w / zoom * margin;
     const visible: number[] = [];
     for (let i = 0; i < pages.length; i++) {
       const left = pageLefts[i];
       const right = left + pages[i].width;
-      if (right > viewLeft && left < viewRight) visible.push(i);
+      if (right >= viewLeft && left <= viewRight) visible.push(i);
     }
     // Always include active page
     if (!visible.includes(activePageIndex)) visible.push(activePageIndex);
     return visible;
-  }, [pages, pageLefts, panX, zoom, containerSize.w, activePageIndex]);
+  }, [pages, pageLefts, panX, zoom, containerSize.w, activePageIndex, carouselW]);
 
   // Compute the visual x offset (gap shift) for an element at global x
   const gapShift = useCallback((x: number) => {
     if (pageGap === 0) return 0;
     for (let i = pages.length - 1; i >= 0; i--) {
-      if (x >= offsets[i]) return i * pageGap;
+      if (x >= pageLefts[i]) return i * pageGap;
     }
     return 0;
-  }, [pageGap, pages, offsets]);
+  }, [pageGap, pages, pageLefts]);
 
   const transformStyle: CSSProperties = {
     position: "absolute",
@@ -646,10 +648,11 @@ export function EditorCanvas() {
             if (el.hidden || cropElementId) return false;
             // Always render selected elements (so handles are always accessible)
             if (selectedIds.includes(el.id)) return true;
-            // Filter by horizontal viewport bounds (vertical is less of an issue for carousels)
-            const viewLeft = (-panX) / zoom - containerSize.w / zoom;
-            const viewRight = (-panX) / zoom + containerSize.w / zoom * 2;
-            return el.x + el.width > viewLeft && el.x < viewRight;
+            // Filter by horizontal viewport bounds
+            const margin = 0.5;
+            const viewLeft = carouselW / 2 - (containerSize.w / 2 + panX) / zoom - containerSize.w / zoom * margin;
+            const viewRight = carouselW / 2 + (containerSize.w / 2 - panX) / zoom + containerSize.w / zoom * margin;
+            return el.x + el.width >= viewLeft && el.x <= viewRight;
           }).map((el) => {
             const isSelected = selectedIds.includes(el.id) && !cropElementId;
             const isEditing = editingTextId === el.id;

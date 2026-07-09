@@ -59,7 +59,7 @@ export function GuideOverlay({ width, height, pageNumber }: Props) {
       // Recalculate autoFitSize for anchored text elements
       const currentElements = useEditorStore.getState().elements;
       for (const cel of currentElements) {
-        if (cel.autoFitSize && (cel.leftAnchor === g.id || cel.rightAnchor === g.id)) {
+        if (cel.autoFitSize && (cel.leftAnchor === g.id || cel.rightAnchor === g.id || cel.topAnchor === g.id || cel.bottomAnchor === g.id)) {
           const autoSize = calculateOptimalFontSize(cel);
           if (autoSize !== null && autoSize !== cel.fontSize) {
             useEditorStore.getState().updateElement(cel.id, { fontSize: autoSize });

@@ -345,8 +345,10 @@ function TextFields({ el, updateElement }: {
       return;
     }
     let pageStart = 0;
-    for (let i = 0; i < activePageIndex; i++) {
-      pageStart += pages[i].width + pageGap;
+    if (guide.pageNumber) {
+      for (let i = 0; i < guide.pageNumber - 1; i++) {
+        if (pages[i]) pageStart += pages[i].width + pageGap;
+      }
     }
     if (side === "leftAnchorOffset") {
       const newX = guide.position + pageStart + value;

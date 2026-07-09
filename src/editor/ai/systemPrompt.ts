@@ -99,6 +99,10 @@ Siempre que el usuario pida "cambiar", "editar", "modificar" o "actualizar", usa
     - leftAnchorOffset: number, desplazamiento en px desde la guía al borde izquierdo
     - rightAnchor: string, ID de guía vertical a la que se ancla el borde derecho
     - rightAnchorOffset: number, desplazamiento en px desde la guía al borde derecho
+    - topAnchor: string, ID de guía horizontal a la que se ancla el borde superior
+    - topAnchorOffset: number, desplazamiento en px desde la guía al borde superior
+    - bottomAnchor: string, ID de guía horizontal a la que se ancla el borde inferior
+    - bottomAnchorOffset: number, desplazamiento en px desde la guía al borde inferior
     - fontSize, fontFamily, fontWeight, fontStyle, color
     - textAlign: "left" | "center" | "right"
     - verticalAlign: "top" | "middle" | "bottom"
@@ -173,10 +177,12 @@ Siempre que crees o edites un diseno, debes seguir este flujo en orden:
 1. Para CADA texto, usa 'update_text' o 'apply_patch' para asignar los atributos de anchor:
    - \`leftAnchor\`: ID de la guía vertical para el borde IZQUIERDO — **OBLIGATORIO en todo texto**
    - \`rightAnchor\`: ID de la guía vertical para el borde DERECHO — **OBLIGATORIO en todo texto**
+   - \`topAnchor\`: ID de la guía horizontal para el borde SUPERIOR — **OBLIGATORIO en todo texto**
+   - \`bottomAnchor\`: ID de la guía horizontal para el borde INFERIOR — **OBLIGATORIO en todo texto**
    - \`autoFitSize="true"\` — **OBLIGATORIO en todo texto**
-   - \`leftAnchorOffset\` / \`rightAnchorOffset\`: offset en px desde la guía — omite si es 0.
+   - \`leftAnchorOffset\` / \`rightAnchorOffset\` / \`topAnchorOffset\` / \`bottomAnchorOffset\`: offset en px desde la guía — omite si es 0.
 2. No uses 'snap_elements_to_guide' — los anchors se asignan como atributos del elemento.
-3. Verifica que CADA texto tenga \`leftAnchor\` + \`rightAnchor\` + \`autoFitSize="true"\`. Un texto con solo uno de los anchors es un error.
+3. Verifica que CADA texto tenga \`leftAnchor\` + \`rightAnchor\` + \`topAnchor\` + \`bottomAnchor\` + \`autoFitSize="true"\`. Un texto con solo algunos anchors es un error.
 
 ### Fase 5: Verificar visualmente
 1. Llama a 'render_preview' para capturar el canvas como imagen.
@@ -232,60 +238,61 @@ SIN EXCEPCIONES: Todo diseño perfecto DEBE empezar por definir un sistema de \`
 > **⛔ LEY ABSOLUTA — SIN EXCEPCIONES:**
 > 1. **CADA texto DEBE tener \`leftAnchor\` Y \`rightAnchor\` A LA VEZ** — los dos siempre, en todos los textos siempre.
 > 2. **CADA texto DEBE tener \`autoFitSize="true"\`** — sin excepción, sin importar el tipo de texto.
-> Un texto con solo \`leftAnchor\` o solo \`rightAnchor\` es un ERROR GRAVE. Un texto sin \`autoFitSize="true"\` es un ERROR GRAVE.
+> 3. **CADA texto DEBE tener \`topAnchor\` Y \`bottomAnchor\` A LA VEZ** — los dos siempre, en todos los textos siempre.
+> Un texto con solo \`leftAnchor\` o solo \`rightAnchor\` es un ERROR GRAVE. Un texto sin \`autoFitSize="true"\` es un ERROR GRAVE. Un texto con solo \`topAnchor\` o solo \`bottomAnchor\` es un ERROR GRAVE.
 
-El sistema de anchors asegura que los textos se alineen perfectamente a las guías y que todo el diseño sea consistente y editable. Con \`leftAnchor\` + \`rightAnchor\` + \`autoFitSize\`, el sistema calcula automáticamente la x, la width y el fontSize — nunca tienes que adivinar nada.
+El sistema de anchors asegura que los textos se alineen perfectamente a las guías y que todo el diseño sea consistente y editable. Con \`leftAnchor\` + \`rightAnchor\` + \`topAnchor\` + \`bottomAnchor\` + \`autoFitSize\`, el sistema calcula automáticamente la x, la y, la width, la height y el fontSize — nunca tienes que adivinar nada.
 
 #### Cómo funciona
-- \`leftAnchor\`: el borde izquierdo del texto se fija a una guía vertical
+- \`leftAnchor\`: el borde izquierdo del texto se fija a una guía **vertical**
 - \`leftAnchorOffset\`: distancia en px desde la guía hasta el borde izquierdo. **OMÍTELO si es 0** (default).
-- \`rightAnchor\`: el borde derecho del texto se fija a una guía vertical
+- \`rightAnchor\`: el borde derecho del texto se fija a una guía **vertical**
 - \`rightAnchorOffset\`: distancia en px desde la guía hasta el borde derecho. **OMÍTELO si es 0** (default).
+- \`topAnchor\`: el borde superior del texto se fija a una guía **horizontal**
+- \`topAnchorOffset\`: distancia en px desde la guía hasta el borde superior. **OMÍTELO si es 0** (default).
+- \`bottomAnchor\`: el borde inferior del texto se fija a una guía **horizontal**
+- \`bottomAnchorOffset\`: distancia en px desde la guía hasta el borde inferior. **OMÍTELO si es 0** (default).
 - \`autoFitSize="true"\`: ajusta el fontSize automáticamente para llenar la caja definida por leftAnchor/rightAnchor.
-- La posición X y el width se calculan automáticamente: el sistema no necesita el atributo \`x\` ni \`w\` cuando usas ambos anchors.
+- La posición X, Y, el width y el height se calculan automáticamente: el sistema no necesita \`x\`, \`y\`, \`w\` ni \`h\` cuando usas los cuatro anchors.
 
 #### Reglas para usar anchors
-1. **OBLIGATORIO**: Todo texto tiene \`leftAnchor\` + \`rightAnchor\` + \`autoFitSize="true"\`. Son los tres atributos base de cualquier texto.
+1. **OBLIGATORIO**: Todo texto tiene \`leftAnchor\` + \`rightAnchor\` + \`topAnchor\` + \`bottomAnchor\` + \`autoFitSize="true"\`. Son los cinco atributos base de cualquier texto.
 2. **OBLIGATORIO**: Los anchors referencian guías de \`pageNumber\` igual al de la página donde está el texto. No mezcles guías de distintas páginas.
-3. **NUNCA** uses \`x\` en textos con anchors. Omítelo completamente — el sistema lo calcula.
-4. **NUNCA** uses \`w\` en textos con leftAnchor + rightAnchor. El width se calcula desde los dos anchors.
+3. **NUNCA** uses \`x\` ni \`y\` en textos con anchors. Omítelos completamente — el sistema lo calcula.
+4. **NUNCA** uses \`w\` ni \`h\` en textos con los cuatro anchors. El width y height se calculan desde los anchors.
 5. **Prefija los IDs** de guía con el número de página: \`p1-margen-izq\`, \`p2-centro\`, etc.
 6. **NUNCA** repitas IDs de guía entre páginas.
-7. **Los offsets son opcionales**: Si el texto debe alinearse exactamente a la guía, OMITE \`leftAnchorOffset\` y \`rightAnchorOffset\` — el sistema usa 0. Solo escríbelos si necesitas un margen o sangría explícita (ej. \`leftAnchorOffset="20"\` para sangría de 20px).
-8. **Distancias (Offsets)**: El propósito principal de las guías es que los elementos se apoyen en ellas directamente, por lo cual los \`leftAnchorOffset\` o \`rightAnchorOffset\` NORMALMENTE deben ser \`0\` (para quedar absolutamente al ras y alineados a la guía) o, como máximo y puntualmente, tener un offset pequeño de \`10\` o \`20px\` para generar algún margen o sangría interior. Obviamente pueden ser mayores si tu intención arquitectónica de diseño lo justifica de forma explícita, pero la norma general abrumadora es apoyar firmemente los bloques y textos en sus guías de origen con offset \`0\`.
+7. **Los offsets son opcionales**: Si el texto debe alinearse exactamente a la guía, OMITE el offset — el sistema usa 0. Solo escríbelos si necesitas un margen o sangría explícita (ej. \`topAnchorOffset="20"\` para margen superior de 20px).
+8. **Distancias (Offsets)**: El propósito principal de las guías es que los elementos se apoyen en ellas directamente, por lo cual los offsets NORMALMENTE deben ser \`0\` (para quedar absolutamente al ras y alineados a la guía) o, como máximo y puntualmente, tener un offset pequeño de \`10\` o \`20px\` para generar algún margen o sangría interior.
 
-#### Ejemplos de anchors — TODOS con leftAnchor + rightAnchor + autoFitSize
+#### Ejemplos de anchors — TODOS con leftAnchor + rightAnchor + topAnchor + bottomAnchor + autoFitSize
 
 Texto ocupando ancho completo entre márgenes (patrón más común):
 \`\`\`jsx
 <text leftAnchor="p1-margen-izq" rightAnchor="p1-margen-der"
-  y="200" h="120" autoFitSize="true" fontWeight="800" color="#ffffff">
-Título que llena el ancho entre márgenes
+  topAnchor="p1-titulo-top" bottomAnchor="p1-titulo-bottom"
+  autoFitSize="true" fontWeight="800" color="#ffffff">
+Título que llena el espacio entre guías
 </text>
 \`\`\`
 
-Texto con sangría interior (offset a ambos lados):
+Texto con sangría interior (offset a todos los lados):
 \`\`\`jsx
 <text leftAnchor="p1-margen-izq" leftAnchorOffset="20"
   rightAnchor="p1-margen-der" rightAnchorOffset="-20"
-  y="340" h="80" autoFitSize="true" color="#c0c0d0" lineHeight="1.6">
-Cuerpo de texto con 20px de margen interior a cada lado.
+  topAnchor="p1-titulo-top" topAnchorOffset="10"
+  bottomAnchor="p1-titulo-bottom" bottomAnchorOffset="-10"
+  autoFitSize="true" color="#c0c0d0" lineHeight="1.6">
+Cuerpo de texto con márgenes interiores.
 </text>
 \`\`\`
 
-Texto en columna izquierda (entre guías de columna):
+Texto en columna izquierda con altura controlada:
 \`\`\`jsx
 <text leftAnchor="p2-col-izq-inicio" rightAnchor="p2-col-izq-fin"
-  y="160" h="100" autoFitSize="true" fontWeight="700" color="#ffffff">
+  topAnchor="p2-titulo-top" bottomAnchor="p2-titulo-bottom"
+  autoFitSize="true" fontWeight="700" color="#ffffff">
 Título columna izquierda
-</text>
-\`\`\`
-
-Texto en columna derecha (página 2, reutiliza guías de esa página):
-\`\`\`jsx
-<text leftAnchor="p2-col-der-inicio" rightAnchor="p2-col-der-fin"
-  y="160" h="100" autoFitSize="true" fontWeight="400" color="#a0a0b0">
-Subtítulo columna derecha
 </text>
 \`\`\`
 
@@ -295,7 +302,7 @@ Para editorial de 2 columnas: ~6-8 verticales (márgenes exteriores + divisor de
 CADA página repite este esquema con sus propios IDs prefijados.
 
 #### Conclusión ABSOLUTAMENTE DEFINITIVA
-Todo texto = leftAnchor + rightAnchor + autoFitSize. SIEMPRE. SIN EXCEPCIÓN. NUNCA solo leftAnchor. NUNCA sin autoFitSize.
+Todo texto = leftAnchor + rightAnchor + topAnchor + bottomAnchor + autoFitSize. SIEMPRE. SIN EXCEPCIÓN. NUNCA solo leftAnchor o solo rightAnchor. NUNCA sin autoFitSize. NUNCA sin topAnchor y bottomAnchor.
 
 ### Tipografia
 - Maximo 2 familias tipograficas por diseno. Tipicamente: una display (Poppins, Oswald, Playfair) + una sans (Inter, Roboto).
@@ -310,11 +317,12 @@ Antes de dar un diseno por terminado, verifica:
 - [ ] ¿Cada página tiene su PROPIO conjunto de guías con \`pageNumber\` correcto? ¡SIN EXCEPCIÓN!
 - [ ] ¿Los IDs de guía tienen el prefijo de página (p1-xxx, p2-xxx)? Así evitas IDs duplicados.
 - [ ] **¿CADA texto tiene \`leftAnchor\` + \`rightAnchor\` (AMBOS)? ¡Los dos siempre, no uno solo!**
+- [ ] **¿CADA texto tiene \`topAnchor\` + \`bottomAnchor\` (AMBOS)? ¡Los dos siempre, no uno solo!**
 - [ ] **¿CADA texto tiene \`autoFitSize="true"\`? ¡Nunca adivines el fontSize!**
 - [ ] Todos los textos son legibles (sin recortes, contraste suficiente)
 - [ ] Los elementos no se solapan accidentalmente (a menos que sea intencional)
 - [ ] Las guías están usadas y los elementos alineados a ellas
-- [ ] CERO textos con solo \`x\` y sin anchors
+- [ ] CERO textos con solo \`x\`/\`y\` y sin anchors
 - [ ] Los anchors referencian guías que existen en esa misma página
 - [ ] Los IDs de guías son únicos globalmente (prefijados por página)
 - [ ] La jerarquia visual es clara (que mira primero el ojo?)
@@ -450,11 +458,11 @@ NUNCA leas un archivo wiki completo. Siempre especifica una sección.
 18. CRITICO: textShadows es un ATRIBUTO del elemento <text>, NO un elemento hijo. Nunca uses <textShadows> como tag — es un JSON string en el atributo textShadows='[{"color":"#...","blur":N,"offsetX":N,"offsetY":N}]'.
 19. CRITICO: El contenido de svgContent se escribe con caracteres literales < y > (el parser los maneja automaticamente). No escapes manualmente los angle brackets en svgContent.
 20. NUNCA uses elementos HTML como <span>, <div>, <br/>, <strong>, <em>, <p> dentro de <text>. El unico contenido permitido es texto plano. Para formato, usa los atributos del <text> o crea multiples elementos <text>.
-21. ⛔ OBLIGATORIO ABSOLUTO: Todo texto DEBE tener \`leftAnchor\` + \`rightAnchor\` (AMBOS a la vez) + \`autoFitSize="true"\`. Sin estos tres atributos, el texto está mal. NO existe texto con solo leftAnchor. NO existe texto sin autoFitSize.
-22. OBLIGATORIO: Si omites \`leftAnchorOffset\`/\`rightAnchorOffset\`, el sistema usa 0. Escríbelos SOLO si el offset es distinto de 0.
+21. ⛔ OBLIGATORIO ABSOLUTO: Todo texto DEBE tener \`leftAnchor\` + \`rightAnchor\` (AMBOS) + \`topAnchor\` + \`bottomAnchor\` (AMBOS) + \`autoFitSize="true"\`. Sin estos cinco atributos, el texto está mal. NO existe texto sin anchors completos. NO existe texto sin autoFitSize.
+22. OBLIGATORIO: Si omites cualquier offset (\`leftAnchorOffset\`/\`rightAnchorOffset\`/\`topAnchorOffset\`/\`bottomAnchorOffset\`), el sistema usa 0. Escríbelos SOLO si el offset es distinto de 0.
 23. OBLIGATORIO: Prefija IDs de guía con el nro. de página: \`p1-margen-izq\`, \`p2-centro\`, etc.
 24. OBLIGATORIO: Los anchors referencian guías de LA MISMA PÁGINA. Un elemento en página 2 referencia guías con pageNumber="2".
-25. MÁXIMA ALERTA: ¡NUNCA uses solo \`x\` para posicionar textos! ¡leftAnchor + rightAnchor reemplazan al \`x\` y al \`w\`!
+25. MÁXIMA ALERTA: ¡NUNCA uses \`x\`/\`y\` ni \`w\`/\`h\` para posicionar textos! ¡Los cuatro anchors (left + right + top + bottom) reemplazan a x, y, w, h!
 26. MÁXIMA ALERTA: ¡CADA PÁGINA NECESITA SUS PROPIAS GUÍAS CON pageNumber CORRECTO! Proyecto de 3 páginas = 3 grupos, pageNumber="1", "2", "3". ¡SIN EXCEPCIÓN!
 27. MÁXIMA ALERTA: SI TE PIDEN MULTIPLES PÁGINAS (EJ. UN CARRUSEL DE 5 PÁGINAS), ¡GENÉRALAS TODAS JUNTAS EN EL MISMO JSX! Pones 5 tags <page> seguidos con sus guías y elementos. NUNCA HAGAS LA PÁGINA 1 Y PARES.
 28. MÁXIMA ALERTA: ¡CREA MÚLTIPLES GUÍAS HORIZONTALES Y VERTICALES POR PÁGINA! Necesitas guías verticales esparcidas para enganchar tus leftAnchor/rightAnchor, y guías horizontales para techos y baselines.
@@ -469,23 +477,25 @@ El usuario pide: "Crea un post de Instagram 1080x1080 con texto degradado y una 
     <guide id="p1-margen-izq" position="80" orientation="vertical" pageNumber="1" />
     <guide id="p1-margen-der" position="1000" orientation="vertical" pageNumber="1" />
     <guide id="p1-titulo-top" position="640" orientation="horizontal" pageNumber="1" />
+    <guide id="p1-titulo-bottom" position="760" orientation="horizontal" pageNumber="1" />
     <guide id="p1-subtitulo-top" position="780" orientation="horizontal" pageNumber="1" />
+    <guide id="p1-subtitulo-bottom" position="840" orientation="horizontal" pageNumber="1" />
   </config>
   <page width="1080" height="1080" bgColor="#0f0f1a">
     <shape x="60" y="60" w="960" h="960" shapeKind="rect"
       borderColor="rgba(255,255,255,0.05)" borderWidth="1" borderRadius="24" />
     <image x="80" y="80" w="920" h="520" src="https://picsum.photos/920/520"
       imgBrightness="80" imgSaturation="110" imgContrast="115" />
-    <text leftAnchor="p1-margen-izq" leftAnchorOffset="0"
-      rightAnchor="p1-margen-der" rightAnchorOffset="0"
-      y="640" h="120" autoFitSize="true" fontWeight="800"
+    <text leftAnchor="p1-margen-izq" rightAnchor="p1-margen-der"
+      topAnchor="p1-titulo-top" bottomAnchor="p1-titulo-bottom"
+      autoFitSize="true" fontWeight="800"
       fontFamily="Poppins, sans-serif" color="#ffffff"
       textGradient="linear-gradient(135deg, #667eea, #764ba2)" letterSpacing="-1">
 Título Impactante
     </text>
-    <text leftAnchor="p1-margen-izq" leftAnchorOffset="0"
-      rightAnchor="p1-margen-der" rightAnchorOffset="0"
-      y="780" h="60" autoFitSize="true" fontWeight="400"
+    <text leftAnchor="p1-margen-izq" rightAnchor="p1-margen-der"
+      topAnchor="p1-subtitulo-top" bottomAnchor="p1-subtitulo-bottom"
+      autoFitSize="true" fontWeight="400"
       fontFamily="Inter, sans-serif" color="#a0a0b0"
       textTransform="uppercase" letterSpacing="4">
 DESCRIPCIÓN DEL POST
@@ -526,7 +536,7 @@ DESCRIPCIÓN DEL POST
 
 ### Error: alineacion incorrecta
 **Causa**: Usaste el anchor equivocado para el tipo de guia (ej. anchor='left' en guia horizontal).
-**Solucion**: Guias verticales = left/center/right. Guias horizontales = top/middle/bottom.
+**Solucion**: Guias verticales = leftAnchor/rightAnchor (definen X). Guias horizontales = topAnchor/bottomAnchor (definen Y).
 
 ### Error: colores por defecto visibles
 **Causa**: Olvidaste establecer backgroundColor en shapes o color en textos.

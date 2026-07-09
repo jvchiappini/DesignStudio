@@ -472,23 +472,36 @@ Para múltiples líneas, multiplica por el número de líneas y suma padding.
 
 ### Anclaje a guías (Guide Anchors)
 
-Los elementos `<text>` pueden anclarse a guías verticales. Cuando la guía se mueve, el elemento la sigue manteniendo la distancia (offset) entre su borde y la guía.
+Los elementos `<text>` pueden anclarse a guías verticales Y horizontales. Cuando la guía se mueve, el elemento la sigue manteniendo la distancia (offset) entre su borde y la guía.
 
 | Atributo | Tipo | Default | Descripción |
 |----------|------|---------|-------------|
-| `leftAnchor` | string | — | ID de la guía vertical a la que se ancla el borde izquierdo del texto. |
-| `leftAnchorOffset` | number | _calculado_ | Distancia en px desde la guía `leftAnchor` al borde izquierdo del texto. Positivo = el texto está a la derecha de la guía. Negativo = a la izquierda. |
-| `rightAnchor` | string | — | ID de la guía vertical a la que se ancla el borde derecho del texto. |
-| `rightAnchorOffset` | number | _calculado_ | Distancia en px desde la guía `rightAnchor` al borde derecho del texto. Positivo = el borde está a la derecha de la guía. Negativo = a la izquierda. |
+| `leftAnchor` | string | — | ID de la guía **vertical** a la que se ancla el borde izquierdo del texto. |
+| `leftAnchorOffset` | number | _calculado_ | Distancia en px desde la guía `leftAnchor` al borde izquierdo del texto. |
+| `rightAnchor` | string | — | ID de la guía **vertical** a la que se ancla el borde derecho del texto. |
+| `rightAnchorOffset` | number | _calculado_ | Distancia en px desde la guía `rightAnchor` al borde derecho del texto. |
+| `topAnchor` | string | — | ID de la guía **horizontal** a la que se ancla el borde superior del texto. |
+| `topAnchorOffset` | number | _calculado_ | Distancia en px desde la guía `topAnchor` al borde superior del texto. |
+| `bottomAnchor` | string | — | ID de la guía **horizontal** a la que se ancla el borde inferior del texto. |
+| `bottomAnchorOffset` | number | _calculado_ | Distancia en px desde la guía `bottomAnchor` al borde inferior del texto. |
 
-**Comportamiento al mover una guía anclada:**
+**Comportamiento al mover una guía anclada (horizontal/X):**
 
-| `leftAnchor` | `rightAnchor` | Efecto |
+| `leftAnchor` | `rightAnchor` | Efecto en X |
 |---|---|---|
 | `"g1"` | — | El texto se desliza completo: `el.x = g1.position + leftAnchorOffset` |
 | — | `"g1"` | El texto se desliza completo: `el.x = (g1.position + rightAnchorOffset) - el.width` |
-| `"g1"` | `"g2"` (distintas) | El texto se redimensiona: cada borde sigue a su guía manteniendo su offset |
-| `"g1"` | `"g1"` | El texto se desliza completo (ambos bordes anclados a la misma guía) |
+| `"g1"` | `"g2"` (distintas) | El texto se redimensiona horizontalmente |
+| `"g1"` | `"g1"` | El texto se desliza completo |
+
+**Comportamiento al mover una guía anclada (vertical/Y):**
+
+| `topAnchor` | `bottomAnchor` | Efecto en Y |
+|---|---|---|
+| `"g1"` | — | El texto se desliza completo: `el.y = g1.position + topAnchorOffset` |
+| — | `"g1"` | El texto se desliza completo: `el.y = (g1.position + bottomAnchorOffset) - el.height` |
+| `"g1"` | `"g2"` (distintas) | El texto se redimensiona verticalmente |
+| `"g1"` | `"g1"` | El texto se desliza completo |
 
 **El offset:**
 
@@ -498,26 +511,26 @@ Los elementos `<text>` pueden anclarse a guías verticales. Cuando la guía se m
 - La IA puede escribirlo explícitamente en JSX: `leftAnchorOffset="120"`
 - El serializador solo lo persiste cuando es distinto de cero
 
-**Ejemplo con offset = 0 (borde alineado exactamente con la guía):**
+**Ejemplo con los cuatro anchors + autoFitSize (recomendado):**
 ```jsx
-<text x="120" y="340" w="2240" h="400" fontSize="160"
-  fontFamily="Oswald, sans-serif" color="#ffffff"
-  leftAnchor="ml-p1" rightAnchor="mr-p1">
+<text leftAnchor="p1-margen-izq" rightAnchor="p1-margen-der"
+  topAnchor="p1-titulo-top" bottomAnchor="p1-titulo-bottom"
+  autoFitSize="true" fontWeight="800" fontFamily="Oswald, sans-serif" color="#ffffff">
   DESIGN
 </text>
 ```
-El parser ve que `x=120` y la guía `ml-p1` está en 120, calcula `leftAnchorOffset=0`. Al arrastrar el texto a x=140, el offset se actualiza a 20 automáticamente. Al mover la guía, el texto se posiciona en `guía.position + 20`.
+El sistema calcula automáticamente x, y, width, height y fontSize desde las guías.
 
-**Ejemplo con offset ≠ 0 (texto centrado dentro de los márgenes):**
+**Ejemplo con offsets (sangrías interiores):**
 ```jsx
-<text x="240" y="1750" w="2000" h="260" fontSize="120"
-  fontFamily="Playfair Display, serif" color="#ffffff"
-  leftAnchor="ml-p1" leftAnchorOffset="120"
-  rightAnchor="mr-p1" rightAnchorOffset="-120">
-  El futuro de la tipografía
+<text leftAnchor="ml-p1" leftAnchorOffset="120"
+  rightAnchor="mr-p1" rightAnchorOffset="-120"
+  topAnchor="mt-p1" topAnchorOffset="40"
+  bottomAnchor="mb-p1" bottomAnchorOffset="-40"
+  autoFitSize="true" fontWeight="400" fontFamily="Playfair Display, serif" color="#ffffff">
+  Texto con márgenes interiores en los 4 lados
 </text>
 ```
-El borde izquierdo está 120px a la derecha de `ml-p1` (offset positivo). El borde derecho está 120px a la izquierda de `mr-p1` (offset negativo). Al mover los márgenes, el título mantiene su "aire" interior de 120px en cada lado. Al arrastrar el título en el canvas, los offsets se recalculan en tiempo real.
 
 ### Atributos comunes compartidos
 
