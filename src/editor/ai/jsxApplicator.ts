@@ -294,16 +294,12 @@ export async function loadJsxIntoStore(
 
 /**
  * Apply an AI-generated <project> JSX to the store.
- *
- * Differences from opening a file:
- *  - History is preserved (user can still Ctrl+Z)
- *  - Page IDs are reused (guides stay attached)
- *  - Guides are only replaced when the JSX explicitly includes <guide> elements
+ * Uses the exact same logic as opening a file from disk.
  */
 export async function applyJsxToStore(jsx: string): Promise<ApplyJsxResult> {
     return loadJsxIntoStore(jsx, {
-        preserveHistory: true,
-        preservePageIds: true,
-        alwaysReplaceGuides: false,
+        preserveHistory: false,
+        preservePageIds: false,
+        alwaysReplaceGuides: true,
     });
 }
