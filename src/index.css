@@ -1,9 +1,45 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
+  /* Dark-first professional palette */
+  --background: 240 25% 6%;
+  --foreground: 240 10% 96%;
+  --card: 240 22% 10%;
+  --card-foreground: 240 10% 96%;
+  --popover: 240 22% 12%;
+  --popover-foreground: 240 10% 96%;
+  --primary: 252 73% 61%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 18% 15%;
+  --secondary-foreground: 240 10% 96%;
+  --muted: 240 15% 18%;
+  --muted-foreground: 240 10% 58%;
+  --accent: 240 18% 15%;
+  --accent-foreground: 252 73% 61%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 14% 20%;
+  --input: 240 14% 20%;
+  --ring: 252 73% 61%;
+  --radius: 0.625rem;
+
+  /* Canvas-specific */
+  --canvas-bg: 240 22% 14%;
+  --canvas-dot: 240 15% 24%;
+  --selection: 252 73% 61%;
+  --ruler-bg: 240 22% 10%;
+  --ruler-tick: 240 10% 40%;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.light {
   --background: 0 0% 100%;
   --foreground: 224 71% 4%;
   --card: 0 0% 100%;
@@ -23,29 +59,6 @@
   --border: 220 13% 91%;
   --input: 220 13% 91%;
   --ring: 221 83% 53%;
-  --radius: 0.875rem;
-}
-
-.dark {
-  --background: 222 47% 4%;
-  --foreground: 210 40% 98%;
-  --card: 221 39% 7%;
-  --card-foreground: 210 40% 98%;
-  --popover: 221 39% 7%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 221 83% 58%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 220 20% 11%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 220 20% 11%;
-  --muted-foreground: 215 16% 57%;
-  --accent: 220 20% 11%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 220 20% 13%;
-  --input: 220 20% 13%;
-  --ring: 221 83% 58%;
 }
 
 @layer base {
@@ -53,7 +66,90 @@
     @apply border-border;
     box-sizing: border-box;
   }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
   body {
     @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+@layer components {
+  /* Icon button */
+  .ds-icon-btn {
+    @apply w-8 h-8 flex items-center justify-center rounded-lg bg-transparent text-muted-foreground transition-all duration-150;
+  }
+  .ds-icon-btn:hover:not(:disabled) {
+    @apply text-foreground bg-accent;
+  }
+  .ds-icon-btn:active:not(:disabled) {
+    @apply scale-95;
+  }
+  .ds-icon-btn:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+  .ds-icon-btn.active {
+    @apply text-primary bg-primary/10;
+  }
+
+  /* Standard button */
+  .ds-btn {
+    @apply inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-all duration-150 border border-transparent;
+  }
+  .ds-btn:hover {
+    @apply opacity-90;
+  }
+  .ds-btn:active {
+    @apply scale-[0.98];
+  }
+  .ds-btn-primary {
+    @apply ds-btn bg-primary text-primary-foreground;
+  }
+  .ds-btn-secondary {
+    @apply ds-btn bg-secondary text-secondary-foreground border-border;
+  }
+  .ds-btn-ghost {
+    @apply ds-btn bg-transparent text-muted-foreground border-border hover:text-foreground hover:bg-accent;
+  }
+  .ds-btn-destructive {
+    @apply ds-btn bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20;
+  }
+
+  /* Input */
+  .ds-input {
+    @apply w-full h-8 px-2.5 rounded-lg border border-border bg-background text-foreground text-xs outline-none transition-colors;
+  }
+  .ds-input:focus {
+    @apply border-primary/60 ring-1 ring-primary/20;
+  }
+  .ds-input::placeholder {
+    @apply text-muted-foreground/50;
+  }
+
+  /* Panel section */
+  .ds-section-title {
+    @apply text-[10px] font-semibold uppercase tracking-wider text-muted-foreground;
+  }
+
+  /* Card/panel */
+  .ds-panel {
+    @apply bg-card border-border border;
+  }
+
+  /* Tooltip-like native title styling via a dedicated attr is not needed here */
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .bg-canvas-bg {
+    background-color: hsl(var(--canvas-bg));
   }
 }

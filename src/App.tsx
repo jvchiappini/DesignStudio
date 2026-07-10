@@ -12,10 +12,16 @@ import type { ExportFormat } from "./editor/utils/types";
 function LoadingOverlay({ visible, progress }: { visible: boolean; progress: number }) {
   if (!visible) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-[#1a1a2e] shadow-2xl">
-        <div className="w-10 h-10 border-4 border-[#6c5ce7] border-t-transparent rounded-full animate-spin" />
-        <p className="text-white text-sm font-medium">Exportando... {progress}%</p>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-4 p-8 rounded-2xl bg-card border border-border shadow-2xl min-w-[200px]">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
+          <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+        </div>
+        <div className="text-center">
+          <p className="text-foreground text-sm font-medium">Exportando</p>
+          <p className="text-muted-foreground text-xs mt-0.5 tabular-nums">{progress}%</p>
+        </div>
       </div>
     </div>
   );

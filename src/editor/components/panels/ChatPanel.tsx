@@ -2,13 +2,6 @@
  * ChatPanel.tsx
  *
  * AI chat sidebar — pure UI component.
- *
- * All AI logic (system prompt, LLM client, JSX application, patch engine) has
- * been moved to src/editor/ai/. This component is responsible only for:
- *   - Rendering the chat thread and input area
- *   - Managing local UI state (messages, loading flag, settings visibility)
- *   - Reading/writing the user's API settings from localStorage
- *   - Delegating all LLM & store operations to the ai/ module functions
  */
 
 import { useRef, useCallback, useState, useEffect } from "react";
@@ -31,8 +24,7 @@ import {
   takePreview,
 } from "../../ai";
 import type { LlmProvider, LlmMessage, LlmResponse } from "../../ai";
-
-// ─── Local types ──────────────────────────────────────────────────────────────
+import { Icon } from "../ui/Icons";
 
 interface ChatMessage {
   role: "user" | "assistant" | "tool_call" | "tool_result";
@@ -44,16 +36,11 @@ interface ChatMessage {
   imageUrl?: string;
 }
 
-// ─── localStorage keys ────────────────────────────────────────────────────────
-
 const LS_API_KEY = "ds_openai_key";
 const LS_PROVIDER = "ds_ai_provider";
 const LS_MODEL = "ds_ai_model";
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function ChatPanel() {
-  // ── Store subscriptions ────────────────────────────────────────────────────
   const chatOpen = useEditorStore((s) => s.chatOpen);
   const chatWidth = useEditorStore((s) => s.chatWidth);
   const setChatWidth = useEditorStore((s) => s.setChatWidth);
@@ -61,13 +48,11 @@ export function ChatPanel() {
   const projectName = useEditorStore((s) => s.projectName);
   const elementCount = useEditorStore((s) => s.elements.length);
 
-  // ── Local state ────────────────────────────────────────────────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Settings — persisted to localStorage
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(LS_API_KEY) || "");
   const [provider, setProvider] = useState<LlmProvider>(
     () => (localStorage.getItem(LS_PROVIDER) as LlmProvider | null) ?? "openai"
@@ -76,25 +61,19 @@ export function ChatPanel() {
     () => localStorage.getItem(LS_MODEL) || PROVIDER_DEFAULT_MODELS[provider]
   );
 
-  // ── Refs ───────────────────────────────────────────────────────────────────
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startX: number; startW: number } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Auto-scroll to the latest message
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Sync model when provider changes
   useEffect(() => {
     setModel(PROVIDER_DEFAULT_MODELS[provider]);
   }, [provider]);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  /** Serialize the current project as LLM-safe JSX (base64 → placeholders) */
   const getCurrentJsx = useCallback((): string => {
     try {
       const state = useEditorStore.getState();
@@ -104,8 +83,6 @@ export function ChatPanel() {
     }
   }, []);
 
-  // ── Send message ───────────────────────────────────────────────────────────
-
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || loading) return;
@@ -113,7 +90,7 @@ export function ChatPanel() {
     if (!apiKey.trim()) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: "⚠️ Por favor configura tu API key en el botón ⚙️ arriba." },
+        { role: "assistant", text: "⚠️ Por favor configura tu API key en el botón de configuración arriba." },
       ]);
       return;
     }
@@ -122,18 +99,15 @@ export function ChatPanel() {
     setInput("");
     setLoading(true);
 
-    // Create abort controller so the user can stop
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // Build tool definitions for the LLM
     const toolDefs = allTools.map((t) => ({
       name: t.name,
       description: t.description,
       parameters: t.parameters as Record<string, unknown>,
     }));
 
-    // Build tool registry map for quick lookup
     const toolMap = new Map(allTools.map((t) => [t.name, t]));
 
     try {
@@ -142,13 +116,11 @@ export function ChatPanel() {
       const store = useEditorStore.getState();
       const aiCtx = buildAiContext(store);
 
-      // Build conversation messages
       const msgs: LlmMessage[] = [
         { role: "system", content: DS_SYSTEM_PROMPT },
         { role: "user", content: `${contextBlock}\n\n## Request\n${text}` },
       ];
 
-      // Tool-use loop: up to 10 rounds to prevent infinite loops
       let finalContent = "";
       for (let round = 0; round < 10; round++) {
         if (controller.signal.aborted) {
@@ -166,25 +138,22 @@ export function ChatPanel() {
         });
 
         if (resp.toolCalls && resp.toolCalls.length > 0) {
-          // Add assistant message with tool_calls to history
           const assistantMsg: LlmMessage = {
             role: "assistant",
             content: resp.content || "",
             tool_calls: resp.toolCalls.map((tc) => ({ id: tc.id, name: tc.name, arguments: tc.arguments })),
           };
-          // Preserve raw Google parts (thoughtSignature etc.) for subsequent requests
           if ((resp as any)._rawParts) {
             (assistantMsg as any)._rawParts = (resp as any)._rawParts;
           }
           msgs.push(assistantMsg);
 
-          // Show tool calls to the user
           for (const tc of resp.toolCalls) {
             setMessages((prev) => [
               ...prev,
               {
                 role: "tool_call",
-                text: `🔧 ${tc.name}`,
+                text: `${tc.name}`,
                 toolName: tc.name,
                 args: tc.arguments,
               },
@@ -202,7 +171,7 @@ export function ChatPanel() {
               } as LlmMessage);
               setMessages((prev) => [
                 ...prev,
-                { role: "tool_result", text: `❌ Tool "${tc.name}" not found`, ok: false },
+                { role: "tool_result", text: `Tool "${tc.name}" not found`, ok: false },
               ]);
               continue;
             }
@@ -233,18 +202,16 @@ export function ChatPanel() {
               } as LlmMessage);
               setMessages((prev) => [
                 ...prev,
-                { role: "tool_result", text: `❌ Error executing "${tc.name}"`, ok: false },
+                { role: "tool_result", text: `Error executing "${tc.name}"`, ok: false },
               ]);
             }
           }
 
-          // Stop early if user cancelled
           if (controller.signal.aborted) {
             setMessages((prev) => [...prev, { role: "assistant", text: "⏹️ Generación detenida." }]);
             break;
           }
 
-          // After executing tools, check if there's a captured preview to inject
           const previewUrl = takePreview();
           if (previewUrl) {
             msgs.push({
@@ -259,14 +226,12 @@ export function ChatPanel() {
               { role: "user", text: "🖼️ (Auto-preview enviado para revisión visual)", imageUrl: previewUrl },
             ]);
           }
-          // Continue loop — LLM will see tool results + optional image
         } else {
           finalContent = resp.content;
           break;
         }
       }
 
-      // Parse and apply the final response
       const extracted = extractDsResponse(finalContent);
 
       if (extracted) {
@@ -330,16 +295,12 @@ export function ChatPanel() {
     [handleSend]
   );
 
-  // ── Persist settings ───────────────────────────────────────────────────────
-
   const saveSettings = useCallback(() => {
     localStorage.setItem(LS_API_KEY, apiKey);
     localStorage.setItem(LS_PROVIDER, provider);
     localStorage.setItem(LS_MODEL, model);
     setShowSettings(false);
   }, [apiKey, provider, model]);
-
-  // ── Panel resize handle ────────────────────────────────────────────────────
 
   const handleResizeStart = useCallback(
     (e: React.PointerEvent) => {
@@ -362,68 +323,58 @@ export function ChatPanel() {
     [chatWidth, setChatWidth]
   );
 
-  // ── Early return ───────────────────────────────────────────────────────────
-
   if (!chatOpen) return null;
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div
-      className="flex-shrink-0 border-l border-border bg-background flex flex-col relative"
+      className="flex-shrink-0 border-l border-border bg-card flex flex-col relative"
       style={{ width: chatWidth }}
     >
-      {/* ── Resize handle ── */}
+      {/* Resize handle */}
       <div
         onPointerDown={handleResizeStart}
-        style={{
-          position: "absolute", left: 0, top: 0, bottom: 0, width: 4,
-          cursor: "ew-resize", zIndex: 10,
-        }}
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize z-10 hover:bg-primary/30 transition-colors"
       />
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">Chat IA</span>
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-card">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center text-primary">
+            <Icon name="chat" size={14} />
+          </div>
+          <span className="text-xs font-semibold text-foreground">Chat IA</span>
           {loading && (
-            <span className="text-[9px] text-muted-foreground animate-pulse">pensando...</span>
+            <span className="text-[10px] text-muted-foreground animate-pulse">pensando…</span>
           )}
         </div>
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="border border-border bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-[10px] px-1.5 py-0.5 rounded"
-            title="Configurar API key"
-          >⚙️</button>
-          <button
-            onClick={() => setMessages([])}
-            className="border border-border bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-[10px] px-1.5 py-0.5 rounded"
-            title="Limpiar chat"
-          >🗑</button>
-          <button
-            onClick={() => setChatOpen(false)}
-            className="border-none bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-xs leading-none px-1"
-          >✕</button>
+          <button onClick={() => setShowSettings(!showSettings)} className={`ds-icon-btn w-7 h-7 ${showSettings ? "active" : ""}`} title="Configurar API key">
+            <Icon name="settings" size={15} />
+          </button>
+          <button onClick={() => setMessages([])} className="ds-icon-btn w-7 h-7" title="Limpiar chat">
+            <Icon name="clear" size={15} />
+          </button>
+          <button onClick={() => setChatOpen(false)} className="ds-icon-btn w-7 h-7" title="Cerrar">
+            <Icon name="close" size={15} />
+          </button>
         </div>
       </div>
 
-      {/* ── Settings panel ── */}
+      {/* Settings panel */}
       {showSettings && (
-        <div className="border-b border-border px-3 py-3 space-y-2 bg-muted/30">
-          <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Configuración IA</div>
+        <div className="border-b border-border px-3 py-3 space-y-3 bg-muted/20">
+          <div className="ds-section-title">Configuración IA</div>
 
-          {/* Provider selector */}
           <div>
-            <label className="text-[10px] text-muted-foreground block mb-0.5">Proveedor</label>
-            <div className="flex gap-1">
+            <label className="text-[10px] text-muted-foreground block mb-1">Proveedor</label>
+            <div className="flex gap-2">
               {(["openai", "openrouter", "google"] as LlmProvider[]).map((p) => (
                 <button
                   key={p}
                   onClick={() => setProvider(p)}
-                  className={`flex-1 h-6 rounded text-[10px] border cursor-pointer ${provider === p
+                  className={`flex-1 h-7 rounded-lg text-[10px] border cursor-pointer transition-colors ${provider === p
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+                    : "border-border bg-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
                     }`}
                 >
                   {p === "openai" ? "OpenAI" : p === "openrouter" ? "OpenRouter" : "Google"}
@@ -432,58 +383,58 @@ export function ChatPanel() {
             </div>
           </div>
 
-          {/* Model input */}
           <div>
-            <label className="text-[10px] text-muted-foreground block mb-0.5">Modelo</label>
+            <label className="text-[10px] text-muted-foreground block mb-1">Modelo</label>
             <input
               value={model}
               onChange={(e) => setModel(e.target.value)}
               placeholder={PROVIDER_DEFAULT_MODELS[provider]}
-              className="w-full h-7 px-2 rounded border border-border bg-background text-foreground text-[10px] outline-none"
+              className="ds-input h-7 text-[11px]"
             />
-            <div className="text-[9px] text-muted-foreground mt-0.5">
+            <div className="text-[9px] text-muted-foreground mt-1">
               {PROVIDER_MODEL_HINTS[provider]}
             </div>
           </div>
 
-          {/* API key input */}
           <div>
-            <label className="text-[10px] text-muted-foreground block mb-0.5">API Key</label>
+            <label className="text-[10px] text-muted-foreground block mb-1">API Key</label>
             <input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder={PROVIDER_KEY_PLACEHOLDERS[provider]}
-              className="w-full h-7 px-2 rounded border border-border bg-background text-foreground text-[10px] outline-none"
+              className="ds-input h-7 text-[11px]"
             />
           </div>
 
-          <button
-            onClick={saveSettings}
-            className="w-full h-7 rounded bg-primary text-primary-foreground text-[10px] font-medium border-none cursor-pointer"
-          >
+          <button onClick={saveSettings} className="ds-btn-primary w-full h-8">
             Guardar
           </button>
         </div>
       )}
 
-      {/* ── Project indicator ── */}
-      <div className="px-3 py-1 border-b border-border">
-        <div className="text-[9px] text-muted-foreground truncate">
-          📄 {projectName} · {elementCount} elementos
+      {/* Project indicator */}
+      <div className="px-3 py-1.5 border-b border-border bg-muted/10">
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground truncate">
+          <Icon name="open" size={12} />
+          <span className="truncate">{projectName}</span>
+          <span className="text-muted-foreground/50">·</span>
+          <span>{elementCount} elementos</span>
         </div>
       </div>
 
-      {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 min-h-0">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 min-h-0">
         {messages.length === 0 && (
-          <div className="text-[10px] text-muted-foreground text-center py-8 space-y-2">
-            <div className="text-2xl">🎨</div>
-            <div>Describe el diseño que quieres crear o editar.</div>
-            <div className="text-[9px] opacity-60">El LLM verá el proyecto actual y generará JSX.</div>
+          <div className="flex flex-col items-center justify-center text-center py-10 px-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3">
+              <Icon name="chat" size={24} />
+            </div>
+            <div className="text-xs text-foreground font-medium mb-1">Describe el diseño que quieres</div>
+            <div className="text-[10px] text-muted-foreground max-w-[200px]">El LLM verá el proyecto actual y generará JSX o un parche.</div>
             {!apiKey && (
-              <div className="text-[9px] text-destructive mt-2">
-                ⚠️ Configura tu API key en ⚙️
+              <div className="mt-3 px-3 py-1.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-[10px]">
+                Configura tu API key en <Icon name="settings" size={10} className="inline" />
               </div>
             )}
           </div>
@@ -492,35 +443,38 @@ export function ChatPanel() {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             {m.role === "tool_call" && (
-              <div className="max-w-[90%] px-2.5 py-1.5 rounded-lg text-[10px] leading-relaxed break-words bg-blue-950/20 border border-blue-800/20 text-muted-foreground font-mono">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-blue-400">🔧</span>
+              <div className="max-w-[90%] px-3 py-2 rounded-xl text-[10px] leading-relaxed break-words bg-blue-950/20 border border-blue-800/20 text-muted-foreground font-mono">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Icon name="settings" size={12} className="text-blue-400" />
                   <span className="text-blue-300 font-semibold">{m.toolName}</span>
                 </div>
-                <pre className="text-[9px] text-blue-200/70 whitespace-pre-wrap mt-0.5">{m.args?.slice(0, 300)}{m.args && m.args.length > 300 ? "…" : ""}</pre>
+                <pre className="text-[9px] text-blue-200/70 whitespace-pre-wrap">{m.args?.slice(0, 300)}{m.args && m.args.length > 300 ? "…" : ""}</pre>
               </div>
             )}
             {m.role === "tool_result" && (
-              <div className={`max-w-[90%] px-2.5 py-1.5 rounded-lg text-[10px] leading-relaxed break-words font-mono ${m.ok !== false
-                ? "bg-emerald-950/20 border border-emerald-800/20 text-emerald-300"
-                : "bg-red-950/20 border border-red-800/20 text-red-300"
+              <div className={`max-w-[90%] px-3 py-2 rounded-xl text-[10px] leading-relaxed break-words font-mono border ${m.ok !== false
+                ? "bg-emerald-950/20 border-emerald-800/20 text-emerald-300"
+                : "bg-red-950/20 border-red-800/20 text-red-300"
                 }`}>
-                <span className="opacity-80">{m.ok !== false ? "✓" : "✗"} {m.text}</span>
+                <span className="opacity-80 flex items-center gap-1">
+                  <Icon name={m.ok !== false ? "check" : "close"} size={10} />
+                  {m.text}
+                </span>
               </div>
             )}
             {m.role === "user" && (
-              <div className="max-w-[90%] px-2.5 py-1.5 rounded-lg text-[10px] leading-relaxed whitespace-pre-wrap break-words bg-primary text-primary-foreground">
+              <div className="max-w-[90%] px-3 py-2 rounded-xl text-xs leading-relaxed whitespace-pre-wrap break-words bg-primary text-primary-foreground shadow-sm">
                 {m.text}
                 {m.imageUrl && (
-                  <img src={m.imageUrl} alt="preview" className="mt-2 w-full h-auto rounded border border-white/20" />
+                  <img src={m.imageUrl} alt="preview" className="mt-2 w-full h-auto rounded-lg border border-white/20" />
                 )}
               </div>
             )}
             {m.role === "assistant" && (
               <div
-                className={`max-w-[90%] px-2.5 py-1.5 rounded-lg text-[10px] leading-relaxed break-words prose prose-invert prose-xs ${m.applied
-                  ? "bg-emerald-950/40 border border-emerald-800/40 text-foreground"
-                  : "bg-accent text-foreground"
+                className={`max-w-[92%] px-3 py-2.5 rounded-xl text-[11px] leading-relaxed break-words prose prose-invert prose-xs border ${m.applied
+                  ? "bg-emerald-950/20 border-emerald-800/20 text-foreground"
+                  : "bg-muted/30 border-border text-foreground"
                   }`}
               >
                 <ReactMarkdown
@@ -529,16 +483,16 @@ export function ChatPanel() {
                     code({ className, children, ...props }) {
                       const isInline = !className;
                       if (isInline) {
-                        return <code className="bg-muted/60 px-1 rounded text-[9px]" {...props}>{children}</code>;
+                        return <code className="bg-background/60 px-1 rounded text-[10px]" {...props}>{children}</code>;
                       }
                       return (
-                        <pre className="bg-muted/60 p-2 rounded text-[9px] overflow-x-auto my-1">
+                        <pre className="bg-background/60 p-2 rounded-lg text-[10px] overflow-x-auto my-1 border border-border">
                           <code className={className} {...props}>{children}</code>
                         </pre>
                       );
                     },
                     a({ href, children }) {
-                      return <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-blue-400">{children}</a>;
+                      return <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-primary">{children}</a>;
                     },
                     ul({ children }) {
                       return <ul className="list-disc pl-4 my-1">{children}</ul>;
@@ -559,13 +513,13 @@ export function ChatPanel() {
                       return <h3 className="text-[10px] font-bold my-1">{children}</h3>;
                     },
                     blockquote({ children }) {
-                      return <blockquote className="border-l-2 border-muted-foreground/30 pl-2 my-1 text-muted-foreground italic">{children}</blockquote>;
+                      return <blockquote className="border-l-2 border-primary/40 pl-2 my-1 text-muted-foreground italic">{children}</blockquote>;
                     },
                     hr() {
                       return <hr className="border-border my-2" />;
                     },
                     table({ children }) {
-                      return <table className="border-collapse w-full text-[9px] my-1">{children}</table>;
+                      return <table className="border-collapse w-full text-[10px] my-1">{children}</table>;
                     },
                     th({ children }) {
                       return <th className="border border-border px-1.5 py-0.5 font-semibold bg-muted/30">{children}</th>;
@@ -584,8 +538,10 @@ export function ChatPanel() {
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-accent text-foreground px-3 py-2 rounded-lg text-[10px]">
-              <span className="animate-pulse">●●●</span>
+            <div className="bg-muted/50 text-foreground px-3 py-2 rounded-xl text-[10px] flex items-center gap-1.5 border border-border">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "300ms" }} />
             </div>
           </div>
         )}
@@ -593,34 +549,35 @@ export function ChatPanel() {
         <div ref={endRef} />
       </div>
 
-      {/* ── Input ── */}
-      <div className="border-t border-border p-2 flex gap-2 items-end">
+      {/* Input */}
+      <div className="border-t border-border p-3 flex gap-2 items-end bg-card">
         <textarea
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Describe el cambio… (Enter para enviar, Shift+Enter para nueva línea)"
+          placeholder="Describe el cambio…"
           rows={2}
-          className="flex-1 px-2 py-1.5 border border-border rounded bg-background text-foreground text-[10px] outline-none box-border resize-none leading-relaxed"
+          className="flex-1 px-3 py-2 border border-border rounded-xl bg-background text-foreground text-xs outline-none box-border resize-none leading-relaxed focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all"
           style={{ minHeight: 48, maxHeight: 120 }}
         />
         <button
           onClick={handleSend}
           disabled={loading || !input.trim()}
-          className={`px-3 py-1.5 border-none rounded cursor-pointer text-[10px] leading-none font-medium whitespace-nowrap h-8 ${loading || !input.trim()
+          className={`w-9 h-9 flex items-center justify-center rounded-xl border-none cursor-pointer transition-all ${loading || !input.trim()
             ? "bg-muted text-muted-foreground opacity-50 cursor-not-allowed"
-            : "bg-primary text-primary-foreground"
+            : "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105"
             }`}
         >
-          {loading ? "..." : "Enviar"}
+          <Icon name="send" size={16} />
         </button>
         {loading && (
           <button
             onClick={() => abortRef.current?.abort()}
-            className="px-3 py-1.5 border border-red-500/40 rounded cursor-pointer text-[10px] leading-none font-medium whitespace-nowrap h-8 bg-red-950/20 text-red-400 hover:bg-red-950/40"
+            className="w-9 h-9 flex items-center justify-center rounded-xl border border-destructive/40 cursor-pointer bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+            title="Detener"
           >
-            ⏹ Stop
+            <Icon name="stop" size={14} />
           </button>
         )}
       </div>

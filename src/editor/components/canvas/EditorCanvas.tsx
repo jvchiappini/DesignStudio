@@ -35,7 +35,8 @@ interface DragState {
 }
 
 const HANDLE_SIZE = 10;
-const HANDLE_COLOR = "#6c5ce7";
+const HANDLE_COLOR = "hsl(var(--primary))";
+const HANDLE_BG = "#fff";
 
 const handlePositions: { key: ResizeHandle; sx: number; sy: number }[] = [
   { key: "nw", sx: 0, sy: 0 }, { key: "n", sx: 0.5, sy: 0 }, { key: "ne", sx: 1, sy: 0 },
@@ -591,7 +592,7 @@ export function EditorCanvas() {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-hidden bg-[#232338] relative min-h-0"
+      className="flex-1 overflow-hidden bg-canvas-bg relative min-h-0"
       style={{ cursor: isPanning ? "grabbing" : "grab" }}
       onPointerDown={handleContainerPointerDown}
       onPointerMove={handlePointerMove}
@@ -715,18 +716,19 @@ export function EditorCanvas() {
                         onPointerDown={(e) => handlePointerDown(e, el.id, hp.key)}
                         style={{
                           position: "absolute", width: HANDLE_SIZE, height: HANDLE_SIZE,
-                          backgroundColor: HANDLE_COLOR, border: "2px solid #fff",
-                          borderRadius: 2, cursor: handleCursor(hp.key), zIndex: 9999,
+                          backgroundColor: HANDLE_BG, border: `2px solid ${HANDLE_COLOR}`,
+                          borderRadius: 3, cursor: handleCursor(hp.key), zIndex: 9999,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
                           left: `calc(${hp.sx * 100}% - ${HANDLE_SIZE / 2}px)`,
                           top: `calc(${hp.sy * 100}% - ${HANDLE_SIZE / 2}px)`,
                         }} />
                     ))}
-                    <div data-selection="true" className="absolute top-[-30px] left-1/2 -translate-x-1/2 w-px h-[30px] bg-[rgba(108,92,231,0.4)] pointer-events-none"
-                      style={{ transform: `translateX(-0.5px)` }} />
+                    <div data-selection="true" className="absolute top-[-30px] left-1/2 -translate-x-1/2 w-px h-[30px] pointer-events-none"
+                      style={{ backgroundColor: HANDLE_COLOR, opacity: 0.5, transform: `translateX(-0.5px)` }} />
                     <div data-handle="true"
                       onPointerDown={(e) => handleRotateStart(e, el.id)}
-                      className="absolute top-[-36px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2 border-white cursor-grab z-[9999]"
-                      style={{ backgroundColor: HANDLE_COLOR }} />
+                      className="absolute top-[-36px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2 cursor-grab z-[9999]"
+                      style={{ backgroundColor: HANDLE_BG, borderColor: HANDLE_COLOR, boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
                   </>
                 )}
               </div>
@@ -913,8 +915,12 @@ const PageVisual = React.memo(function PageVisual({
       )}
 
       {overlapping.length === 0 && isActive && (
-        <div className="absolute inset-0 flex items-center justify-center text-[rgba(255,255,255,0.2)] text-base pointer-events-none font-sans">
-          Haz clic en Elementos o Texto para empezar
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/30 pointer-events-none font-sans gap-2">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-50">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M3 9h18M9 21V9" />
+          </svg>
+          <span className="text-sm">Haz clic en Elementos o Texto para empezar</span>
         </div>
       )}
     </div>

@@ -9,17 +9,18 @@ import { LayoutEditor } from "../tools/LayoutEditor";
 import { GOOGLE_FONTS, loadGoogleFont } from "../../utils/googleFonts";
 import { optimizeImage } from "../../utils/imageOptimizer";
 import { calculateOptimalFontSize } from "../../utils/textMeasure";
+import { Icon } from "../ui/Icons";
 
 function NumField({ label: lbl, value, onChange, min, max, step }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number;
 }) {
   return (
     <div>
-      <div className="text-[11px] text-muted-foreground font-medium mb-1">{lbl}</div>
+      <div className="text-[10px] text-muted-foreground font-medium mb-1">{lbl}</div>
       <input type="number"
         value={Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
         min={min} max={max} step={step ?? 1}
-        className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-sans box-border"
+        className="ds-input h-7"
         onChange={(e) => {
           const raw = e.target.value;
           if (raw === "" || raw === "-") return;
@@ -30,13 +31,18 @@ function NumField({ label: lbl, value, onChange, min, max, step }: {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="mb-5">
-      <div className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide pb-1.5 border-b border-border mb-2.5">
+    <div className="mb-4 border border-border rounded-xl overflow-hidden bg-card/50">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors"
+      >
         {title}
-      </div>
-      <div className="mt-2.5">{children}</div>
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
+      </button>
+      {open && <div className="px-3 pb-3">{children}</div>}
     </div>
   );
 }
@@ -48,42 +54,43 @@ function GuideProperties({ guide }: { guide: Guide }) {
   const setSelectedGuideId = useEditorStore((s) => s.setSelectedGuideId);
   const pages = useEditorStore((s) => s.pages);
   const activePageIndex = useEditorStore((s) => s.activePageIndex);
-
   const currentPage = pages[activePageIndex];
 
   return (
     <>
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-semibold text-foreground">Guía</span>
-        <div className="flex gap-1">
-          <button onClick={() => { removeGuide(guide.id); setSelectedGuideId(null); }}
-            className="bg-accent border-none rounded text-destructive hover:text-destructive/80 cursor-pointer text-sm px-2 py-1 leading-none">🗑</button>
-        </div>
+        <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Icon name="guides" size={16} className="text-primary" /> Guía
+        </span>
+        <button onClick={() => { removeGuide(guide.id); setSelectedGuideId(null); }}
+          className="ds-icon-btn w-7 h-7 text-destructive hover:bg-destructive/10">
+          <Icon name="trash" size={14} />
+        </button>
       </div>
 
-      <Section title="Identidad">
-        <div className="mb-3">
-          <div className="text-[11px] text-muted-foreground font-medium mb-1">ID</div>
+      <Section title="Identidad" defaultOpen={false}>
+        <div className="mb-2">
+          <div className="text-[10px] text-muted-foreground font-medium mb-1">ID</div>
           <input type="text" value={guide.id}
-            className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+            className="ds-input font-mono h-7"
             onChange={(e) => updateGuide(guide.id, { id: e.target.value })} />
         </div>
       </Section>
 
-      <Section title="Posición">
-        <div className="grid grid-cols-2 gap-2 mb-3">
+      <Section title="Posición" defaultOpen={true}>
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <NumField label={guide.orientation === "horizontal" ? "Y (px)" : "X (px)"}
             value={guide.position}
             onChange={(v) => updateGuidePosition(guide.id, v)} />
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Orientación</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Orientación</div>
             <div className="flex gap-1">
               <button onClick={() => updateGuide(guide.id, { orientation: "vertical" })}
-                className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${guide.orientation === "vertical" ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"}`}>
+                className={`flex-1 px-2 py-1.5 border-none rounded-lg text-xs cursor-pointer leading-none transition-colors ${guide.orientation === "vertical" ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"}`}>
                 ┃ Vertical
               </button>
               <button onClick={() => updateGuide(guide.id, { orientation: "horizontal" })}
-                className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${guide.orientation === "horizontal" ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"}`}>
+                className={`flex-1 px-2 py-1.5 border-none rounded-lg text-xs cursor-pointer leading-none transition-colors ${guide.orientation === "horizontal" ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"}`}>
                 ━ Horizontal
               </button>
             </div>
@@ -91,16 +98,16 @@ function GuideProperties({ guide }: { guide: Guide }) {
         </div>
       </Section>
 
-      <Section title="Página">
+      <Section title="Página" defaultOpen={false}>
         <div className="text-xs text-muted-foreground">
           {currentPage ? currentPage.name || currentPage.id : "—"}
         </div>
       </Section>
 
-      <Section title="Acciones">
+      <Section title="Acciones" defaultOpen={false}>
         <button onClick={() => { removeGuide(guide.id); setSelectedGuideId(null); }}
-          className="w-full px-2 py-1.5 border border-border rounded bg-destructive/10 text-destructive hover:bg-destructive/20 cursor-pointer text-xs leading-none">
-          Eliminar guía
+          className="ds-btn-destructive w-full h-8">
+          <Icon name="trash" size={14} /> Eliminar guía
         </button>
       </Section>
     </>
@@ -128,78 +135,76 @@ export function RightPanel() {
   return (
     <div className={`absolute right-0 top-0 h-full z-50 transition-transform duration-200 ${(isElementOpen && el) || isGuideOpen ? "translate-x-0" : "translate-x-full"
       }`}>
-      <div className="w-[280px] h-full bg-card border-l border-border overflow-y-auto p-4">
+      <div className="w-[300px] h-full bg-card border-l border-border overflow-y-auto p-4 shadow-[-8px_0_24px_rgba(0,0,0,0.2)]">
         {isGuideOpen && guide && <GuideProperties guide={guide} />}
 
         {!isGuideOpen && el && (
           <>
             <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-semibold text-foreground">{typeLabel}</span>
-              <div className="flex gap-1">
-                <button onClick={() => sendToBack(el.id)} title="Al fondo"
-                  className="bg-accent border-none rounded text-muted-foreground hover:text-foreground cursor-pointer text-sm px-2 py-1 leading-none">⬇</button>
-                <button onClick={() => bringToFront(el.id)} title="Al frente"
-                  className="bg-accent border-none rounded text-muted-foreground hover:text-foreground cursor-pointer text-sm px-2 py-1 leading-none">⬆</button>
-                <button onClick={deleteSelected} title="Eliminar"
-                  className="bg-accent border-none rounded text-destructive hover:text-destructive/80 cursor-pointer text-sm px-2 py-1 leading-none">🗑</button>
+              <span className="text-sm font-semibold text-foreground flex items-center gap-2">
+                {el.type === "text" && <Icon name="text" size={16} className="text-primary" />}
+                {el.type === "image" && <Icon name="image" size={16} className="text-primary" />}
+                {el.type === "shape" && <Icon name="elements" size={16} className="text-primary" />}
+                {el.type === "svg" && <Icon name="svg" size={16} className="text-primary" />}
+                {typeLabel}
+              </span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => sendToBack(el.id)} title="Al fondo" className="ds-icon-btn w-7 h-7"><Icon name="chevron-down" size={14} /></button>
+                <button onClick={() => bringToFront(el.id)} title="Al frente" className="ds-icon-btn w-7 h-7"><Icon name="chevron-up" size={14} /></button>
+                <button onClick={deleteSelected} title="Eliminar" className="ds-icon-btn w-7 h-7 text-destructive hover:bg-destructive/10"><Icon name="trash" size={14} /></button>
               </div>
             </div>
 
-            <Section title="Posición">
-              <div className="grid grid-cols-2 gap-2 mb-3">
+            <Section title="Posición" defaultOpen={true}>
+              <div className="grid grid-cols-2 gap-2">
                 <NumField label="X" value={el.x} onChange={(v) => updateElement(el.id, { x: v })} />
                 <NumField label="Y" value={el.y} onChange={(v) => updateElement(el.id, { y: v })} />
               </div>
             </Section>
 
-            <Section title="Tamaño">
-              <div className="grid grid-cols-2 gap-2 mb-3">
+            <Section title="Tamaño" defaultOpen={true}>
+              <div className="grid grid-cols-2 gap-2">
                 <NumField label="Ancho" value={el.width} onChange={(v) => updateElement(el.id, { width: Math.max(10, v) })} min={10} />
                 <NumField label="Alto" value={el.height} onChange={(v) => updateElement(el.id, { height: Math.max(10, v) })} min={10} />
               </div>
             </Section>
 
-            <Section title="Transformar">
-              <div className="grid grid-cols-2 gap-2 mb-3">
+            <Section title="Transformar" defaultOpen={true}>
+              <div className="grid grid-cols-2 gap-2 mb-2">
                 <NumField label="Rotación" value={el.rotation} onChange={(v) => updateElement(el.id, { rotation: v })} />
                 <NumField label="Opacidad" value={el.opacity} onChange={(v) => updateElement(el.id, { opacity: Math.max(0, Math.min(1, v)) })} min={0} max={1} step={0.05} />
               </div>
-            </Section>
-
-            <Section title="Voltear">
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-2">
                 <button onClick={() => updateElement(el.id, { flipH: !el.flipH })}
-                  className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${el.flipH ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"
-                    }`}>
-                  ↔ Horizontal
+                  className={`ds-btn flex-1 h-8 text-[11px] ${el.flipH ? "bg-primary text-primary-foreground" : "ds-btn-ghost"}`}>
+                  <Icon name="flip-h" size={14} /> Horizontal
                 </button>
                 <button onClick={() => updateElement(el.id, { flipV: !el.flipV })}
-                  className={`flex-1 px-2 py-1.5 border-none rounded text-xs cursor-pointer leading-none ${el.flipV ? "bg-primary text-primary-foreground" : "bg-accent text-muted-foreground hover:text-foreground"
-                    }`}>
-                  ↕ Vertical
+                  className={`ds-btn flex-1 h-8 text-[11px] ${el.flipV ? "bg-primary text-primary-foreground" : "ds-btn-ghost"}`}>
+                  <Icon name="flip-v" size={14} /> Vertical
                 </button>
               </div>
             </Section>
 
-            <Section title="Sombra">
-              <div className="grid grid-cols-2 gap-2 mb-3">
+            <Section title="Sombra" defaultOpen={false}>
+              <div className="grid grid-cols-2 gap-2 mb-2">
                 <div>
-                  <div className="text-[11px] text-muted-foreground font-medium mb-1">Color</div>
+                  <div className="text-[10px] text-muted-foreground font-medium mb-1">Color</div>
                   <input type="color" value={el.shadowColor ?? "#000000"}
-                    className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+                    className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
                     onChange={(e) => updateElement(el.id, { shadowColor: e.target.value })} />
                 </div>
                 <NumField label="Difuminado" value={el.shadowBlur ?? 0}
                   onChange={(v) => updateElement(el.id, { shadowBlur: v })} min={0} />
               </div>
-              <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="grid grid-cols-2 gap-2 mb-2">
                 <NumField label="Offset X" value={el.shadowOffsetX ?? 0}
                   onChange={(v) => updateElement(el.id, { shadowOffsetX: v })} />
                 <NumField label="Offset Y" value={el.shadowOffsetY ?? 4}
                   onChange={(v) => updateElement(el.id, { shadowOffsetY: v })} />
               </div>
               <button onClick={() => updateElement(el.id, { shadowColor: undefined, shadowBlur: undefined, shadowOffsetX: undefined, shadowOffsetY: undefined })}
-                className="w-full px-2 py-1.5 border-none rounded bg-accent text-destructive hover:text-destructive/80 cursor-pointer text-xs leading-none mt-1">
+                className="ds-btn-ghost w-full h-8 text-destructive hover:bg-destructive/10">
                 Eliminar sombra
               </button>
             </Section>
@@ -209,12 +214,10 @@ export function RightPanel() {
             {el.type === "shape" && <ShapeFields el={el} updateElement={updateElement} />}
             {el.type === "svg" && <SvgFields el={el} updateElement={updateElement} />}
 
-            {/* Auto Layout — available for all element types */}
-            <Section title="Auto Layout">
+            <Section title="Auto Layout" defaultOpen={false}>
               <LayoutEditor el={el} updateElement={updateElement} elements={elements} />
             </Section>
 
-            {/* Clip / Mask */}
             <ClipFields el={el} updateElement={updateElement} />
           </>
         )}
@@ -265,8 +268,7 @@ const FONT_GROUPS: FontGroup[] = [
   },
 ];
 
-const styleBtn =
-  "w-7 h-7 flex items-center justify-center border border-border rounded bg-background text-foreground text-xs cursor-pointer leading-none";
+const styleBtn = "w-7 h-7 flex items-center justify-center border border-border rounded-lg bg-background text-foreground text-xs cursor-pointer leading-none transition-colors hover:border-primary/40";
 
 function TextFields({ el, updateElement }: {
   el: DesignElement; updateElement: (id: string, u: Partial<DesignElement>) => void;
@@ -367,23 +369,23 @@ function TextFields({ el, updateElement }: {
 
   return (
     <>
-      <Section title="Contenido">
+      <Section title="Contenido" defaultOpen={true}>
         <textarea value={el.text ?? ""}
-          className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-sans box-border min-h-[56px] resize-vertical"
+          className="w-full px-2.5 py-2 border border-border rounded-lg bg-background text-foreground text-xs font-sans min-h-[64px] resize-y outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all"
           onChange={(e) => updateElement(el.id, { text: e.target.value })} />
       </Section>
 
-      <Section title="Fuente">
-        <div className="mb-3 relative" ref={fontPickerRef}>
+      <Section title="Fuente" defaultOpen={true}>
+        <div className="mb-2 relative" ref={fontPickerRef}>
           <button onClick={() => setFontPickerOpen(!fontPickerOpen)}
-            className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs text-left flex items-center gap-2 cursor-pointer hover:border-foreground/30">
+            className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground text-xs text-left flex items-center gap-2 cursor-pointer hover:border-primary/40 transition-colors">
             <span style={{ fontFamily: el.fontFamily, fontSize: 14 }} className="flex-1 truncate">
               {el.fontFamily?.split(",")[0] ?? "System UI"}
             </span>
-            <span className="text-muted-foreground text-[10px]">▾</span>
+            <Icon name={fontPickerOpen ? "chevron-up" : "chevron-down"} size={12} className="text-muted-foreground" />
           </button>
           {fontPickerOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-lg z-[70] shadow-lg max-h-[260px] overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-xl z-[70] shadow-lg max-h-[260px] overflow-y-auto">
               {(() => {
                 const groups: FontGroup[] = [
                   ...FONT_GROUPS,
@@ -394,11 +396,11 @@ function TextFields({ el, updateElement }: {
                 ];
                 return groups.map((g) => (
                   <div key={g.label}>
-                    <div className="text-[10px] text-muted-foreground px-2.5 pt-2 pb-0.5 font-semibold uppercase tracking-wider">{g.label}</div>
+                    <div className="text-[10px] text-muted-foreground px-3 pt-2 pb-1 font-semibold uppercase tracking-wider">{g.label}</div>
                     {g.fonts.map((f) => (
                       <button key={f.value}
                         onClick={() => { updateElement(el.id, { fontFamily: f.value }); loadGoogleFont(f.display); setFontPickerOpen(false); }}
-                        className={`w-full px-2.5 py-1.5 border-none bg-transparent text-left text-xs cursor-pointer flex items-center gap-2 hover:bg-accent ${el.fontFamily === f.value ? "bg-primary/10 text-primary" : "text-popover-foreground"
+                        className={`w-full px-3 py-1.5 border-none bg-transparent text-left text-xs cursor-pointer flex items-center gap-2 hover:bg-accent transition-colors ${el.fontFamily === f.value ? "bg-primary/10 text-primary" : "text-popover-foreground"
                           }`}
                         style={{ fontFamily: f.value, fontSize: 14 }}>
                         {f.display}
@@ -410,12 +412,12 @@ function TextFields({ el, updateElement }: {
             </div>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <NumField label="Tamaño" value={el.fontSize ?? 32} onChange={(v) => updateElement(el.id, { fontSize: v })} min={8} />
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Color</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Color</div>
             <input type="color" value={el.color ?? "#ffffff"}
-              className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+              className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
               onChange={(e) => updateElement(el.id, { color: e.target.value })} />
           </div>
         </div>
@@ -432,27 +434,27 @@ function TextFields({ el, updateElement }: {
                 }
               }
             }}
-            className="cursor-pointer accent-primary" />
+            className="cursor-pointer accent-primary w-4 h-4" />
           <label htmlFor="autoFitSize" className="text-[10px] text-muted-foreground cursor-pointer select-none">
             Auto ajustar texto al contenedor
           </label>
         </div>
       </Section>
 
-      <Section title="Anclaje a guías">
+      <Section title="Anclaje a guías" defaultOpen={false}>
         <div className="grid grid-cols-2 gap-2 mb-2">
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Guía izquierda</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Guía izquierda</div>
             <input type="text" value={el.leftAnchor ?? ""}
               placeholder="—"
-              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+              className="ds-input font-mono h-7"
               onChange={(e) => updateElement(el.id, { leftAnchor: e.target.value || undefined })} />
           </div>
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Distancia</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Distancia</div>
             <input type="text" inputMode="numeric"
               value={String(el.leftAnchorOffset ?? 0)}
-              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+              className="ds-input font-mono h-7"
               onChange={(e) => {
                 const raw = e.target.value;
                 if (raw === "" || raw === "-") return;
@@ -461,17 +463,17 @@ function TextFields({ el, updateElement }: {
               }} />
           </div>
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Guía derecha</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Guía derecha</div>
             <input type="text" value={el.rightAnchor ?? ""}
               placeholder="—"
-              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+              className="ds-input font-mono h-7"
               onChange={(e) => updateElement(el.id, { rightAnchor: e.target.value || undefined })} />
           </div>
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Distancia</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Distancia</div>
             <input type="text" inputMode="numeric"
               value={String(el.rightAnchorOffset ?? 0)}
-              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-mono box-border"
+              className="ds-input font-mono h-7"
               onChange={(e) => {
                 const raw = e.target.value;
                 if (raw === "" || raw === "-") return;
@@ -501,31 +503,31 @@ function TextFields({ el, updateElement }: {
         })()}
       </Section>
 
-      <Section title="Estilo">
-        <div className="flex items-center gap-1 mb-3">
+      <Section title="Estilo" defaultOpen={true}>
+        <div className="flex items-center gap-1 mb-2">
           <button onClick={() => updateElement(el.id, { fontWeight: el.fontWeight === 700 ? 400 : 700 })}
-            className={`${styleBtn} ${(el.fontWeight ?? 400) >= 600 ? "bg-accent text-foreground" : ""}`}
+            className={`${styleBtn} ${(el.fontWeight ?? 400) >= 600 ? "bg-accent text-foreground border-primary" : ""}`}
             title="Negrita"><b>B</b></button>
           <button onClick={() => updateElement(el.id, { fontStyle: el.fontStyle === "italic" ? "normal" : "italic" })}
-            className={`${styleBtn} ${el.fontStyle === "italic" ? "bg-accent text-foreground" : ""}`}
+            className={`${styleBtn} ${el.fontStyle === "italic" ? "bg-accent text-foreground border-primary" : ""}`}
             title="Cursiva"><i>I</i></button>
           <button onClick={() => updateElement(el.id, { textDecoration: el.textDecoration === "underline" ? "none" : "underline" })}
-            className={`${styleBtn} ${el.textDecoration === "underline" ? "bg-accent text-foreground" : ""}`}
+            className={`${styleBtn} ${el.textDecoration === "underline" ? "bg-accent text-foreground border-primary" : ""}`}
             title="Subrayado"><u>U</u></button>
           <button onClick={() => updateElement(el.id, { textDecoration: el.textDecoration === "line-through" ? "none" : "line-through" })}
-            className={`${styleBtn} ${el.textDecoration === "line-through" ? "bg-accent text-foreground" : ""}`}
+            className={`${styleBtn} ${el.textDecoration === "line-through" ? "bg-accent text-foreground border-primary" : ""}`}
             title="Tachado"><s>S</s></button>
           <div className="w-px h-5 bg-border mx-1" />
           <button onClick={() => updateElement(el.id, { fontVariant: el.fontVariant === "small-caps" ? "normal" : "small-caps" })}
-            className={`${styleBtn} ${el.fontVariant === "small-caps" ? "bg-accent text-foreground" : ""}`}
+            className={`${styleBtn} ${el.fontVariant === "small-caps" ? "bg-accent text-foreground border-primary" : ""}`}
             title="Versalitas"><span style={{ fontVariant: "small-caps" }}>Aa</span></button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2">
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Peso</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Peso</div>
             <select value={el.fontWeight}
-              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-sans box-border"
+              className="ds-input h-7"
               onChange={(e) => updateElement(el.id, { fontWeight: Number(e.target.value) })}>
               <option value={100}>Thin</option>
               <option value={200}>Extra Light</option>
@@ -539,9 +541,9 @@ function TextFields({ el, updateElement }: {
             </select>
           </div>
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Transformar</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Transformar</div>
             <select value={el.textTransform ?? "none"}
-              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-sans box-border"
+              className="ds-input h-7"
               onChange={(e) => updateElement(el.id, { textTransform: e.target.value as "none" | "uppercase" | "lowercase" | "capitalize" })}>
               <option value="none">Normal</option>
               <option value="uppercase">MAYÚSCULAS</option>
@@ -552,20 +554,20 @@ function TextFields({ el, updateElement }: {
         </div>
       </Section>
 
-      <Section title="Espaciado">
-        <div className="grid grid-cols-2 gap-2 mb-3">
+      <Section title="Espaciado" defaultOpen={false}>
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <NumField label="Interletraje" value={el.letterSpacing ?? 0}
             onChange={(v) => updateElement(el.id, { letterSpacing: v })} step={0.5} />
           <NumField label="Altura línea" value={el.lineHeight ?? 1.2}
             onChange={(v) => updateElement(el.id, { lineHeight: Math.max(0.5, v) })} step={0.1} min={0.5} />
         </div>
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <NumField label="Esp. palabras" value={el.wordSpacing ?? 0}
             onChange={(v) => updateElement(el.id, { wordSpacing: v })} step={0.5} />
           <NumField label="Sangría" value={el.textIndent ?? 0}
             onChange={(v) => updateElement(el.id, { textIndent: v })} />
         </div>
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2">
           <NumField label="Escala X %" value={el.charScaleX ?? 100}
             onChange={(v) => updateElement(el.id, { charScaleX: Math.max(10, v) })} min={10} />
           <NumField label="Escala Y %" value={el.charScaleY ?? 100}
@@ -573,7 +575,7 @@ function TextFields({ el, updateElement }: {
         </div>
       </Section>
 
-      <Section title="Padding interno">
+      <Section title="Padding interno" defaultOpen={false}>
         <div className="grid grid-cols-2 gap-2 mb-2">
           <NumField label="Izquierdo" value={el.textPaddingLeft ?? 4}
             onChange={(v) => updateElement(el.id, { textPaddingLeft: Math.max(0, v) })} min={0} />
@@ -588,12 +590,12 @@ function TextFields({ el, updateElement }: {
         </div>
       </Section>
 
-      <Section title="Outline (borde externo)">
-        <div className="grid grid-cols-2 gap-2 mb-3">
+      <Section title="Outline (borde externo)" defaultOpen={false}>
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Color</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Color</div>
             <input type="color" value={el.textOutlineColor ?? "#6c5ce7"}
-              className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+              className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
               onChange={(e) => updateElement(el.id, { textOutlineColor: e.target.value })} />
           </div>
           <NumField label="Grosor" value={el.textOutlineWidth ?? 0}
@@ -601,110 +603,93 @@ function TextFields({ el, updateElement }: {
         </div>
         {(el.textOutlineWidth ?? 0) > 0 && (
           <button onClick={() => updateElement(el.id, { textOutlineColor: undefined, textOutlineWidth: undefined })}
-            className="w-full px-2 py-1 border border-border rounded bg-transparent text-destructive text-[10px] cursor-pointer leading-none">
+            className="ds-btn-ghost w-full h-8 text-destructive hover:bg-destructive/10">
             Quitar outline
           </button>
         )}
       </Section>
 
-      <Section title="Desbordamiento">
+      <Section title="Desbordamiento" defaultOpen={false}>
         <div className="flex gap-1">
           {(["hidden", "visible", "ellipsis", "clip"] as const).map((o) => (
             <button key={o} onClick={() => updateElement(el.id, { textOverflow: o === "hidden" ? undefined : o })}
-              className={`flex-1 h-8 text-[10px] border rounded cursor-pointer leading-none
-                ${(el.textOverflow ?? "hidden") === o ? "bg-accent text-foreground border-primary" : "bg-transparent text-muted-foreground border-border hover:border-foreground/30"}`}>
+              className={`flex-1 h-8 text-[10px] border rounded-lg cursor-pointer leading-none transition-colors
+                ${(el.textOverflow ?? "hidden") === o ? "bg-accent text-foreground border-primary" : "bg-transparent text-muted-foreground border-border hover:border-primary/40"}`}>
               {o === "hidden" ? "Ocultar" : o === "visible" ? "Visible" : o === "ellipsis" ? "..." : "Clip"}
             </button>
           ))}
         </div>
       </Section>
 
-      <Section title="Decoración">
-        <div className="grid grid-cols-2 gap-2 mb-3">
+      <Section title="Decoración" defaultOpen={false}>
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Borde texto</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Borde texto</div>
             <input type="color" value={el.textStrokeColor ?? "#000000"}
-              className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+              className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
               onChange={(e) => updateElement(el.id, { textStrokeColor: e.target.value })} />
           </div>
           <NumField label="Grosor borde" value={el.textStrokeWidth ?? 0}
             onChange={(v) => updateElement(el.id, { textStrokeWidth: Math.max(0, v) })} min={0} step={0.5} />
         </div>
         <div>
-          <div className="text-[11px] text-muted-foreground font-medium mb-1">Fondo texto</div>
+          <div className="text-[10px] text-muted-foreground font-medium mb-1">Fondo texto</div>
           <input type="color" value={el.textBgColor ?? "#00000000"}
-            className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+            className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
             onChange={(e) => updateElement(el.id, { textBgColor: e.target.value })} />
         </div>
       </Section>
 
       <ShadowList el={el} updateElement={updateElement} />
 
-      <Section title="Degradado">
+      <Section title="Degradado" defaultOpen={false}>
         <div className="flex items-center gap-2 mb-2">
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Color 1</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Color 1</div>
             <input type="color" value={gradColors[0]}
-              className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+              className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
               onChange={(e) => updateGradient([e.target.value, gradColors[1]])} />
           </div>
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Color 2</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Color 2</div>
             <input type="color" value={gradColors[1]}
-              className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+              className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
               onChange={(e) => updateGradient([gradColors[0], e.target.value])} />
           </div>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => updateGradient(["#ff6b6b", "#4ecdc4"])}
-            className="w-7 h-7 rounded border border-border"
-            style={{ background: "linear-gradient(135deg, #ff6b6b, #4ecdc4)" }} title="Verde-Rosa" />
-          <button onClick={() => updateGradient(["#667eea", "#764ba2"])}
-            className="w-7 h-7 rounded border border-border"
-            style={{ background: "linear-gradient(135deg, #667eea, #764ba2)" }} title="Púrpura" />
-          <button onClick={() => updateGradient(["#f093fb", "#f5576c"])}
-            className="w-7 h-7 rounded border border-border"
-            style={{ background: "linear-gradient(135deg, #f093fb, #f5576c)" }} title="Rosa" />
-          <button onClick={() => updateGradient(["#4facfe", "#00f2fe"])}
-            className="w-7 h-7 rounded border border-border"
-            style={{ background: "linear-gradient(135deg, #4facfe, #00f2fe)" }} title="Celeste" />
-          <button onClick={() => updateGradient(["#43e97b", "#38f9d7"])}
-            className="w-7 h-7 rounded border border-border"
-            style={{ background: "linear-gradient(135deg, #43e97b, #38f9d7)" }} title="Verde" />
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => updateGradient(["#ff6b6b", "#4ecdc4"])} className="w-7 h-7 rounded-lg border border-border" style={{ background: "linear-gradient(135deg, #ff6b6b, #4ecdc4)" }} title="Verde-Rosa" />
+          <button onClick={() => updateGradient(["#667eea", "#764ba2"])} className="w-7 h-7 rounded-lg border border-border" style={{ background: "linear-gradient(135deg, #667eea, #764ba2)" }} title="Púrpura" />
+          <button onClick={() => updateGradient(["#f093fb", "#f5576c"])} className="w-7 h-7 rounded-lg border border-border" style={{ background: "linear-gradient(135deg, #f093fb, #f5576c)" }} title="Rosa" />
+          <button onClick={() => updateGradient(["#4facfe", "#00f2fe"])} className="w-7 h-7 rounded-lg border border-border" style={{ background: "linear-gradient(135deg, #4facfe, #00f2fe)" }} title="Celeste" />
+          <button onClick={() => updateGradient(["#43e97b", "#38f9d7"])} className="w-7 h-7 rounded-lg border border-border" style={{ background: "linear-gradient(135deg, #43e97b, #38f9d7)" }} title="Verde" />
           <button onClick={() => updateElement(el.id, { textGradient: undefined, textGradientColors: undefined })}
-            className="w-7 h-7 rounded border border-border bg-muted text-[10px] flex items-center justify-center text-muted-foreground"
-            title="Quitar degradado">✕</button>
+            className="w-7 h-7 rounded-lg border border-border bg-muted text-[10px] flex items-center justify-center text-muted-foreground hover:text-foreground" title="Quitar degradado"><Icon name="close" size={12} /></button>
         </div>
       </Section>
 
-      <Section title="Alineación">
-        <div className="flex items-center gap-1 mb-3">
+      <Section title="Alineación" defaultOpen={false}>
+        <div className="flex items-center gap-1">
           <button onClick={() => updateElement(el.id, { textAlign: "left" })}
-            className={`${styleBtn} ${el.textAlign === "left" || !el.textAlign ? "bg-accent text-foreground" : ""}`}
-            title="Izquierda">≡</button>
+            className={`${styleBtn} ${el.textAlign === "left" || !el.textAlign ? "bg-accent text-foreground border-primary" : ""}`} title="Izquierda">≡</button>
           <button onClick={() => updateElement(el.id, { textAlign: "center" })}
-            className={`${styleBtn} ${el.textAlign === "center" ? "bg-accent text-foreground" : ""}`}
-            title="Centro">≡</button>
+            className={`${styleBtn} ${el.textAlign === "center" ? "bg-accent text-foreground border-primary" : ""}`} title="Centro">≡</button>
           <button onClick={() => updateElement(el.id, { textAlign: "right" })}
-            className={`${styleBtn} ${el.textAlign === "right" ? "bg-accent text-foreground" : ""}`}
-            title="Derecha">≡</button>
+            className={`${styleBtn} ${el.textAlign === "right" ? "bg-accent text-foreground border-primary" : ""}`} title="Derecha">≡</button>
           <div className="w-px h-5 bg-border mx-1" />
           <button onClick={() => updateElement(el.id, { verticalAlign: "top" })}
-            className={`${styleBtn} ${el.verticalAlign === "top" ? "bg-accent text-foreground" : ""}`}
-            title="Arriba">⊤</button>
+            className={`${styleBtn} ${el.verticalAlign === "top" ? "bg-accent text-foreground border-primary" : ""}`} title="Arriba">⊤</button>
           <button onClick={() => updateElement(el.id, { verticalAlign: "middle" })}
-            className={`${styleBtn} ${(el.verticalAlign ?? "middle") === "middle" ? "bg-accent text-foreground" : ""}`}
-            title="Centro vertical">⟂</button>
+            className={`${styleBtn} ${(el.verticalAlign ?? "middle") === "middle" ? "bg-accent text-foreground border-primary" : ""}`} title="Centro vertical">⟂</button>
           <button onClick={() => updateElement(el.id, { verticalAlign: "bottom" })}
-            className={`${styleBtn} ${el.verticalAlign === "bottom" ? "bg-accent text-foreground" : ""}`}
-            title="Abajo">⊥</button>
+            className={`${styleBtn} ${el.verticalAlign === "bottom" ? "bg-accent text-foreground border-primary" : ""}`} title="Abajo">⊥</button>
         </div>
       </Section>
 
-      <Section title="Fuentes personalizadas">
+      <Section title="Fuentes personalizadas" defaultOpen={false}>
         <button onClick={() => fontInputRef.current?.click()}
-          className="w-full h-9 px-3 border border-border rounded-lg bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-xs flex items-center justify-center gap-1.5">
-          📁 Subir fuente (TTF/OTF/WOFF)
+          className="ds-btn-ghost w-full h-9 text-[11px]">
+          <Icon name="font" size={14} /> Subir fuente (TTF/OTF/WOFF)
         </button>
         <input ref={fontInputRef} type="file" accept=".ttf,.otf,.woff,.woff2" className="hidden" onChange={handleFontUpload} />
         <div className="flex gap-1.5 mt-2">
@@ -712,7 +697,7 @@ function TextFields({ el, updateElement }: {
             onChange={(e) => setFontUrl(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") fontUrlRef.current?.form?.requestSubmit(); }}
             placeholder="URL de Google Fonts o .ttf/.woff"
-            className="flex-1 px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-sans box-border min-w-0" />
+            className="ds-input flex-1 min-w-0 h-8" />
           <button onClick={async () => {
             if (!fontUrl.trim() || loadingUrl) return;
             setLoadingUrl(true);
@@ -728,29 +713,29 @@ function TextFields({ el, updateElement }: {
               setLoadingUrl(false);
             }
           }} disabled={loadingUrl}
-            className="shrink-0 h-8 px-2.5 border border-border rounded-lg bg-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30 cursor-pointer text-xs disabled:opacity-50">
+            className="shrink-0 h-8 px-2.5 border border-border rounded-lg bg-transparent text-muted-foreground hover:text-foreground hover:border-primary/40 cursor-pointer text-xs disabled:opacity-50 transition-colors">
             {loadingUrl ? "..." : "Cargar"}
           </button>
         </div>
         {customFonts.length > 0 && (
           <div className="mt-2 space-y-1">
             {customFonts.map((f) => (
-              <div key={f.name} className="flex items-center justify-between px-2 py-1 rounded bg-muted">
+              <div key={f.name} className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-muted">
                 <span className="text-xs text-muted-foreground truncate flex-1">{f.name}</span>
                 <button onClick={() => removeFont(f.name)}
-                  className="text-destructive hover:text-destructive/80 text-xs border-none bg-transparent cursor-pointer ml-2">✕</button>
+                  className="ds-icon-btn w-5 h-5 text-destructive"><Icon name="close" size={12} /></button>
               </div>
             ))}
           </div>
         )}
       </Section>
 
-      <Section title="Exportar como SVG">
+      <Section title="Exportar como SVG" defaultOpen={false}>
         <button onClick={handleConvertToSvg} disabled={converting}
-          className="w-full h-9 px-3 border border-border rounded-lg bg-accent text-foreground hover:bg-accent/50 cursor-pointer text-xs flex items-center justify-center gap-1.5 disabled:opacity-50">
-          {converting ? "Convirtiendo..." : "📐 Convertir texto a SVG vectorial"}
+          className="ds-btn-secondary w-full h-9 text-[11px] disabled:opacity-50">
+          <Icon name="svg" size={14} /> {converting ? "Convirtiendo..." : "Convertir texto a SVG vectorial"}
         </button>
-        <div className="text-[10px] text-muted-foreground mt-1">
+        <div className="text-[10px] text-muted-foreground mt-1.5">
           Descarga el texto como SVG con paths editables (opentype.js)
         </div>
       </Section>
@@ -766,7 +751,7 @@ function ShadowList({ el, updateElement }: {
   const addShadow = () => updateShadows([...shadows, { color: "#000000", blur: 10, offsetX: 0, offsetY: 4 }]);
 
   return (
-    <Section title="Sombras múltiples">
+    <Section title="Sombras múltiples" defaultOpen={false}>
       {shadows.length === 0 ? (
         <div className="text-[10px] text-muted-foreground mb-2">
           Sin sombras adicionales. El panel Sombra general aplica la primera capa.
@@ -774,17 +759,17 @@ function ShadowList({ el, updateElement }: {
       ) : (
         <div className="space-y-2 mb-2">
           {shadows.map((s, i) => (
-            <div key={i} className="flex flex-col gap-1 p-2 border border-border rounded bg-muted/20">
+            <div key={i} className="flex flex-col gap-1 p-2.5 border border-border rounded-xl bg-muted/20">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-muted-foreground font-medium">Sombra {i + 1}</span>
                 <button onClick={() => updateShadows(shadows.filter((_, j) => j !== i))}
-                  className="text-[10px] border-none bg-transparent cursor-pointer text-destructive hover:text-destructive/80 leading-none p-0.5">✕</button>
+                  className="ds-icon-btn w-5 h-5 text-destructive"><Icon name="close" size={12} /></button>
               </div>
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-2 gap-1.5">
                 <div>
                   <div className="text-[9px] text-muted-foreground">Color</div>
                   <input type="color" value={s.color}
-                    className="w-full h-6 border-none p-0 cursor-pointer"
+                    className="w-full h-6 border-none p-0 cursor-pointer rounded"
                     onChange={(e) => {
                       const copy = [...shadows];
                       copy[i] = { ...s, color: e.target.value };
@@ -797,7 +782,7 @@ function ShadowList({ el, updateElement }: {
                   updateShadows(copy);
                 }} min={0} />
               </div>
-              <div className="grid grid-cols-2 gap-1">
+              <div className="grid grid-cols-2 gap-1.5">
                 <NumField label="X" value={s.offsetX} onChange={(v) => {
                   const copy = [...shadows];
                   copy[i] = { ...s, offsetX: v };
@@ -815,13 +800,13 @@ function ShadowList({ el, updateElement }: {
       )}
       {shadows.length < 6 && (
         <button onClick={addShadow}
-          className="w-full px-2 py-1.5 border border-border rounded bg-accent text-muted-foreground hover:text-foreground cursor-pointer text-[10px] leading-none">
-          + Añadir sombra
+          className="ds-btn-secondary w-full h-8 text-[11px]">
+          <Icon name="plus" size={12} /> Añadir sombra
         </button>
       )}
       {shadows.length > 0 && (
         <button onClick={() => updateShadows([])}
-          className="w-full mt-1 px-2 py-1 border border-border rounded bg-transparent text-destructive text-[10px] cursor-pointer leading-none">
+          className="ds-btn-ghost w-full h-8 text-destructive hover:bg-destructive/10 mt-1.5 text-[11px]">
           Quitar todas las sombras
         </button>
       )}
@@ -851,24 +836,24 @@ function ImageFields({ el, updateElement }: {
   }, [el.id, setCropElementId]);
 
   return (
-    <Section title="Imagen">
-      <div className="mb-3">
-        <div className="text-[11px] text-muted-foreground font-medium mb-1">URL</div>
+    <Section title="Imagen" defaultOpen={true}>
+      <div className="mb-2">
+        <div className="text-[10px] text-muted-foreground font-medium mb-1">URL</div>
         <input type="text" value={el.src ?? ""}
-          className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-sans box-border"
+          className="ds-input"
           onChange={(e) => updateElement(el.id, { src: e.target.value })} />
       </div>
       <button onClick={() => inputRef.current?.click()}
-        className="w-full px-2 py-1.5 border-none rounded bg-accent text-muted-foreground hover:text-foreground cursor-pointer text-xs leading-none">
-        Subir desde archivo
+        className="ds-btn-ghost w-full h-8 text-[11px] mb-2">
+        <Icon name="upload" size={14} /> Subir desde archivo
       </button>
       <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
       <button onClick={handleCrop}
-        className="w-full mt-2 px-2 py-1.5 border border-border rounded bg-accent text-muted-foreground hover:text-foreground cursor-pointer text-xs leading-none">
-        ✂ Recortar
+        className="ds-btn-secondary w-full h-8 text-[11px]">
+        <Icon name="crop" size={14} /> Recortar
       </button>
 
-      <Section title="Filtros">
+      <Section title="Filtros" defaultOpen={false}>
         {(["imgBrightness", "imgContrast", "imgSaturation"] as const).map((f) => {
           const labels: Record<string, string> = { imgBrightness: "Brillo", imgContrast: "Contraste", imgSaturation: "Saturación" };
           const defaults: Record<string, number> = { imgBrightness: 100, imgContrast: 100, imgSaturation: 100 };
@@ -896,7 +881,7 @@ function ImageFields({ el, updateElement }: {
         </div>
         {([el.imgBrightness, el.imgContrast, el.imgSaturation, el.imgBlur].some((v) => v != null && v !== 0 && v !== 100)) && (
           <button onClick={() => updateElement(el.id, { imgBrightness: undefined, imgContrast: undefined, imgSaturation: undefined, imgBlur: undefined })}
-            className="w-full h-7 px-2 border border-border rounded bg-transparent text-muted-foreground hover:text-foreground cursor-pointer text-[10px]">
+            className="ds-btn-ghost w-full h-8 text-[11px]">
             Restablecer filtros
           </button>
         )}
@@ -910,11 +895,11 @@ function ShapeFields({ el, updateElement }: {
 }) {
   return (
     <>
-      <Section title="Relleno de fondo">
-        <div className="mb-3">
+      <Section title="Relleno de fondo" defaultOpen={true}>
+        <div className="mb-2">
           <div className="text-[10px] text-muted-foreground mb-1.5">Color sólido rápido</div>
           <input type="color" value={el.backgroundColor ?? "#4f46e5"}
-            className="w-full h-8 border border-border rounded p-0.5 cursor-pointer box-border"
+            className="w-full h-9 rounded-lg border border-border bg-background cursor-pointer"
             onChange={(e) => updateElement(el.id, { backgroundColor: e.target.value })} />
         </div>
         <div className="border-t border-border pt-2">
@@ -926,21 +911,21 @@ function ShapeFields({ el, updateElement }: {
         </div>
       </Section>
 
-      <Section title="Borde">
-        <div className="grid grid-cols-2 gap-2 mb-3">
+      <Section title="Borde" defaultOpen={true}>
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <div>
-            <div className="text-[11px] text-muted-foreground font-medium mb-1">Color</div>
+            <div className="text-[10px] text-muted-foreground font-medium mb-1">Color</div>
             <input type="color" value={el.borderColor ?? "transparent"}
-              className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+              className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
               onChange={(e) => updateElement(el.id, { borderColor: e.target.value })} />
           </div>
           <NumField label="Grosor" value={el.borderWidth ?? 0} onChange={(v) => updateElement(el.id, { borderWidth: v })} min={0} />
         </div>
-        <div className="mb-3">
+        <div className="mb-2">
           <div className="text-[10px] text-muted-foreground mb-1.5">Radio</div>
           <NumField label="Global" value={el.borderRadius ?? 0}
             onChange={(v) => updateElement(el.id, { borderRadius: v, borderRadiusTL: undefined, borderRadiusTR: undefined, borderRadiusBR: undefined, borderRadiusBL: undefined })} min={0} />
-          <div className="grid grid-cols-4 gap-1 mt-1">
+          <div className="grid grid-cols-4 gap-1 mt-1.5">
             {(["TL", "TR", "BR", "BL"] as const).map((corner) => {
               const field = `borderRadius${corner}` as const;
               const label = { TL: "↖", TR: "↗", BR: "↘", BL: "↙" }[corner];
@@ -950,29 +935,29 @@ function ShapeFields({ el, updateElement }: {
                   <span className="text-[9px] text-muted-foreground mb-0.5">{label}</span>
                   <input type="number" value={val} min={0}
                     onChange={(e) => updateElement(el.id, { [field]: Number(e.target.value) })}
-                    className="w-full px-1 py-1 border border-border rounded bg-background text-foreground text-[10px] font-mono text-center box-border" />
+                    className="ds-input text-center h-7 text-[10px] font-mono" />
                 </div>
               );
             })}
           </div>
         </div>
-        <div className="mb-3">
+        <div className="mb-2">
           <div className="text-[10px] text-muted-foreground mb-1">Estilo</div>
           <div className="flex gap-1">
             {(["solid", "dashed", "dotted"] as const).map((s) => (
               <button key={s} onClick={() => updateElement(el.id, { borderStyle: s === "solid" ? undefined : s })}
-                className={`flex-1 h-8 text-[10px] border rounded cursor-pointer
-                  ${(el.borderStyle ?? "solid") === s ? "bg-accent text-foreground border-primary" : "bg-transparent text-muted-foreground border-border hover:border-foreground/30"}`}>
+                className={`flex-1 h-8 text-[10px] border rounded-lg cursor-pointer transition-colors
+                  ${(el.borderStyle ?? "solid") === s ? "bg-accent text-foreground border-primary" : "bg-transparent text-muted-foreground border-border hover:border-primary/40"}`}>
                 {s === "solid" ? "Sólido" : s === "dashed" ? "Discontinuo" : "Punteado"}
               </button>
             ))}
           </div>
         </div>
-        <div className="mb-3">
+        <div className="mb-1">
           <div className="text-[10px] text-muted-foreground mb-1">Modo de fusión</div>
           <select value={el.mixBlendMode ?? "normal"}
             onChange={(e) => updateElement(el.id, { mixBlendMode: e.target.value === "normal" ? undefined : e.target.value })}
-            className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground text-xs font-sans box-border">
+            className="ds-input h-8">
             {[
               ["normal", "Normal"], ["multiply", "Multiplicar"], ["screen", "Pantalla"],
               ["overlay", "Superponer"], ["darken", "Oscurecer"], ["lighten", "Aclarar"],
@@ -1016,27 +1001,27 @@ function SvgFields({ el, updateElement }: {
   return (
     <>
       {el.isSvgPath && (
-        <Section title="Convertido de texto">
-          <div className="text-xs text-muted-foreground bg-muted p-2 rounded mb-2 leading-relaxed">
+        <Section title="Convertido de texto" defaultOpen={false}>
+          <div className="text-xs text-muted-foreground bg-muted p-2.5 rounded-lg mb-2 leading-relaxed border border-border">
             Este SVG fue generado a partir de texto.
           </div>
         </Section>
       )}
 
       {hasText && !hasPaths && (
-        <Section title="Texto en SVG">
-          <div className="text-xs text-muted-foreground bg-muted p-2 rounded mb-2 leading-relaxed">
+        <Section title="Texto en SVG" defaultOpen={true}>
+          <div className="text-xs text-muted-foreground bg-muted p-2.5 rounded-lg mb-2 leading-relaxed border border-border">
             Este SVG contiene texto editable. Para editar paths, conviértelo a curvas primero.
           </div>
           <button onClick={handleConvertTextToPaths} disabled={converting}
-            className="w-full h-9 px-3 border border-border rounded-lg cursor-pointer text-xs flex items-center justify-center gap-1.5 mb-2 bg-transparent text-muted-foreground hover:text-foreground disabled:opacity-50">
-            {converting ? "Convirtiendo..." : "↻ Convertir texto a paths"}
+            className="ds-btn-secondary w-full h-9 text-[11px] disabled:opacity-50">
+            <Icon name="rotate" size={14} /> {converting ? "Convirtiendo..." : "Convertir texto a paths"}
           </button>
         </Section>
       )}
 
       {hasPaths && (
-        <Section title="Edición visual">
+        <Section title="Edición visual" defaultOpen={true}>
           <button onClick={() => {
             if (isPathEditing) {
               setPathEditingId(null);
@@ -1045,15 +1030,15 @@ function SvgFields({ el, updateElement }: {
               setPathEditingId(el.id);
             }
           }}
-            className={`w-full h-9 px-3 border rounded-lg cursor-pointer text-xs flex items-center justify-center gap-1.5 mb-2 ${isPathEditing
+            className={`w-full h-9 px-3 border rounded-lg cursor-pointer text-xs flex items-center justify-center gap-1.5 mb-2 transition-colors ${isPathEditing
               ? "bg-primary text-primary-foreground border-primary"
-              : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+              : "border-border bg-transparent text-muted-foreground hover:text-foreground hover:border-primary/40"
               }`}>
-            {isPathEditing ? "✕ Salir de edición de paths" : "✎ Editar paths en canvas"}
+            {isPathEditing ? <><Icon name="close" size={14} /> Salir de edición</> : <><Icon name="more" size={14} /> Editar paths en canvas</>}
           </button>
           {isPathEditing && (
             <div className="text-[10px] text-muted-foreground leading-relaxed px-1">
-              Arrastra los puntos ◻ y controles ◯ directamente en el canvas para modificar los subpaths.
+              Arrastra los puntos y controles directamente en el canvas para modificar los subpaths.
             </div>
           )}
         </Section>
@@ -1061,24 +1046,22 @@ function SvgFields({ el, updateElement }: {
 
       {!isPathEditing && (
         <>
-          <Section title="Máscara / Clip">
-            <ClipFields el={el} updateElement={updateElement} />
-          </Section>
-          <Section title="Editar subpaths">
+          <ClipFields el={el} updateElement={updateElement} />
+          <Section title="Editar subpaths" defaultOpen={false}>
             <textarea value={svgContent}
-              className="w-full px-2 py-1.5 border border-border rounded bg-background text-foreground font-mono text-[11px] box-border min-h-[180px] resize-vertical"
+              className="w-full px-2.5 py-2 border border-border rounded-lg bg-background text-foreground font-mono text-[11px] min-h-[180px] resize-y outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all"
               onChange={(e) => updateElement(el.id, { svgContent: e.target.value })}
               onFocus={() => saveSnapshot()} />
-            <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+            <div className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
               Edita el código SVG directamente.
             </div>
           </Section>
-          <Section title="Propiedades">
-            <div className="grid grid-cols-2 gap-2 mb-3">
+          <Section title="Propiedades" defaultOpen={false}>
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <div className="text-[11px] text-muted-foreground font-medium mb-1">Relleno</div>
+                <div className="text-[10px] text-muted-foreground font-medium mb-1">Relleno</div>
                 <input type="color" value={el.backgroundColor ?? "#000000"}
-                  className="w-full px-2 py-1 border border-border rounded bg-background h-8 box-border"
+                  className="w-full h-8 rounded-lg border border-border bg-background cursor-pointer"
                   onChange={(e) => updateElement(el.id, { backgroundColor: e.target.value })} />
               </div>
               <NumField label="Opacidad" value={el.opacity}
@@ -1105,18 +1088,18 @@ function ClipFields({ el, updateElement }: {
     updateElement(el.id, { clipMask: { ...mask, ...patch } });
   };
   const maskTypes = [
-    { id: "circle" as const, label: "Circulo", default: "50%" },
+    { id: "circle" as const, label: "Círculo", default: "50%" },
     { id: "ellipse" as const, label: "Elipse", default: "50% 50%" },
-    { id: "polygon" as const, label: "Poligono", default: "50% 0%, 100% 50%, 50% 100%, 0% 50%" },
+    { id: "polygon" as const, label: "Polígono", default: "50% 0%, 100% 50%, 50% 100%, 0% 50%" },
     { id: "inset" as const, label: "Inset", default: "10%" },
     { id: "path" as const, label: "Path", default: "" },
   ];
   return (
-    <Section title="Mascara / Clip">
+    <Section title="Máscara / Clip" defaultOpen={false}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] text-muted-foreground">Recortar forma del elemento</span>
-        <button onClick={toggleMask} className={`text-[10px] px-2 py-1 rounded border cursor-pointer leading-none ${hasMask ? "bg-accent text-foreground border-primary" : "bg-transparent text-muted-foreground border-border"}`}>
-          {hasMask ? "Quitar mascara" : "Anadir mascara"}
+        <button onClick={toggleMask} className={`text-[10px] px-2.5 py-1 rounded-lg border cursor-pointer leading-none transition-colors ${hasMask ? "bg-accent text-foreground border-primary" : "bg-transparent text-muted-foreground border-border hover:text-foreground"}`}>
+          {hasMask ? "Quitar máscara" : "Añadir máscara"}
         </button>
       </div>
       {hasMask && mask && (
@@ -1124,7 +1107,7 @@ function ClipFields({ el, updateElement }: {
           <div className="flex gap-1 flex-wrap mb-2">
             {maskTypes.map((mt) => (
               <button key={mt.id} onClick={() => updateMask({ type: mt.id, value: mt.default })}
-                className={`text-[9px] px-2 py-1 rounded border cursor-pointer ${mask.type === mt.id ? "bg-accent border-primary" : "bg-transparent border-border text-muted-foreground"}`}>
+                className={`text-[9px] px-2 py-1 rounded-lg border cursor-pointer transition-colors ${mask.type === mt.id ? "bg-accent border-primary text-foreground" : "bg-transparent border-border text-muted-foreground hover:text-foreground"}`}>
                 {mt.label}
               </button>
             ))}
@@ -1133,12 +1116,12 @@ function ClipFields({ el, updateElement }: {
             <div className="text-[10px] text-muted-foreground mb-0.5">Valor CSS</div>
             <input value={mask.value} onChange={(e) => updateMask({ value: e.target.value })}
               placeholder={maskTypes.find((mt) => mt.id === mask.type)?.default}
-              className="w-full px-2 py-1 border border-border rounded bg-background text-foreground text-[10px] font-mono box-border" />
+              className="ds-input font-mono h-7 text-[10px]" />
           </div>
-          <div className="text-[9px] text-muted-foreground mt-1 leading-relaxed">
-            {mask.type === "circle" && "Ej: 50% (circulo perfecto), 30% (mas pequeno)"}
-            {mask.type === "ellipse" && "Ej: 50% 50% (circulo), 25% 50% (ovalado)"}
-            {mask.type === "polygon" && "Ej: 50% 0%, 100% 100%, 0% 100% (triangulo)"}
+          <div className="text-[9px] text-muted-foreground mt-1.5 leading-relaxed">
+            {mask.type === "circle" && "Ej: 50% (círculo perfecto), 30% (más pequeño)"}
+            {mask.type === "ellipse" && "Ej: 50% 50% (círculo), 25% 50% (ovalado)"}
+            {mask.type === "polygon" && "Ej: 50% 0%, 100% 100%, 0% 100% (triángulo)"}
             {mask.type === "inset" && "Ej: 10% (10% de cada lado), 20% 10% (20% top/bottom, 10% left/right)"}
             {mask.type === "path" && "SVG path data URL. Ej: M0,0 L100,0 L50,100 Z"}
           </div>
